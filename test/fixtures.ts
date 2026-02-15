@@ -24,5 +24,6 @@ export const sampleSummary: SummaryResult = {
   summaryLines: ['Summary line 1', 'Summary line 2', 'Summary line 3'],
   keyPoints: ['Point 1', 'Point 2', 'Point 3', 'Point 4', 'Point 5'],
   keywords: ['A', 'B', 'C'],
+  broadTags: ['llm', 'openai', 'chatgpt'],
   model: 'test/model:free'
 };

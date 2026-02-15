@@ -8,7 +8,8 @@ describe('parseSummaryJson', () => {
       '{',
       '  "summary_lines": ["a", "b", "c"],',
       '  "key_points": ["1", "2", "3", "4", "5"],',
-      '  "keywords": ["x", "y", "z"]',
+      '  "keywords": ["x", "y", "z"],',
+      '  "broad_tags": ["llm", "openai"]',
       '}',
       '```'
     ].join('\n');
@@ -17,5 +18,6 @@ describe('parseSummaryJson', () => {
     expect(parsed.summary_lines).toHaveLength(3);
     expect(parsed.key_points).toHaveLength(5);
     expect(parsed.keywords).toEqual(['x', 'y', 'z']);
+    expect(parsed.broad_tags).toEqual(['llm', 'openai']);
   });
 });

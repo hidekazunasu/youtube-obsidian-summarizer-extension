@@ -3,7 +3,6 @@ import type {
   CollectVideoDataMessageResponse,
   VideoData
 } from '../lib/types';
-import { decodeHtmlEntities } from '../lib/utils';
 
 chrome.runtime.onMessage.addListener((message: CollectVideoDataMessage, _sender, sendResponse) => {
   if (message.type !== 'COLLECT_VIDEO_DATA') {
@@ -37,17 +36,9 @@ async function handleCollect(): Promise<VideoData> {
   const captionTracks =
     playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
 
-  if (!Array.isArray(captionTracks) || captionTracks.length === 0) {
-    throw {
-      code: 'NO_TRANSCRIPT',
-      message: 'No caption track is available for this video.'
-    };
-  }
-
-  const preferred =
-    captionTracks.find((track: any) => track.kind !== 'asr') ?? captionTracks[0];
-
-  const transcriptText = await fetchTranscript(preferred.baseUrl as string);
+  const videoId =
+    url.searchParams.get('v') ?? playerResponse?.videoDetails?.videoId ?? 'unknown-video';
+  const transcriptText = await resolveTranscript(captionTracks, videoId);
   if (!transcriptText.trim()) {
     throw {
       code: 'NO_TRANSCRIPT',
@@ -65,14 +56,32 @@ async function handleCollect(): Promise<VideoData> {
     'unknown-channel';
 
   return {
-    videoId:
-      url.searchParams.get('v') ?? playerResponse?.videoDetails?.videoId ?? 'unknown-video',
+    videoId,
     title,
     channel,
     url: location.href,
     publishedAt: playerResponse?.microformat?.playerMicroformatRenderer?.publishDate,
     transcriptText
   };
+}
+
+async function resolveTranscript(captionTracks: any[], videoId: string): Promise<string> {
+  if (Array.isArray(captionTracks) && captionTracks.length > 0) {
+    const preferred =
+      captionTracks.find((track: any) => track.kind !== 'asr') ?? captionTracks[0];
+    const fromTrack = await fetchTranscript(preferred.baseUrl as string);
+    if (fromTrack.trim()) {
+      return fromTrack;
+    }
+  }
+
+  const fromTimedText = await fetchTranscriptFromTimedText(videoId);
+  if (fromTimedText.trim()) {
+    return fromTimedText;
+  }
+
+  const fromDomPanel = await fetchTranscriptFromDomPanel();
+  return fromDomPanel;
 }
 
 async function loadPlayerResponse(): Promise<any> {
@@ -86,7 +95,15 @@ async function loadPlayerResponse(): Promise<any> {
 
   const start = markerIndex + marker.length;
   const jsonText = extractJsonObjectFrom(html, start);
-  return JSON.parse(jsonText);
+  try {
+    return JSON.parse(jsonText);
+  } catch (error) {
+    throw new Error(
+      `Could not parse ytInitialPlayerResponse JSON: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 }
 
 function extractJsonObjectFrom(input: string, start: number): string {
@@ -138,27 +155,195 @@ function extractJsonObjectFrom(input: string, start: number): string {
 async function fetchTranscript(baseUrl: string): Promise<string> {
   const separator = baseUrl.includes('?') ? '&' : '?';
   const url = `${baseUrl}${separator}fmt=json3`;
-
-  const payload = await fetch(url, { credentials: 'include' }).then((r) => r.json());
-  const events = payload?.events;
-  if (!Array.isArray(events)) {
+  const raw = await fetch(url, { credentials: 'include' }).then((r) => r.text());
+  if (!raw.trim()) {
     return '';
   }
 
-  const lines: string[] = [];
-  for (const event of events) {
-    if (!Array.isArray(event?.segs)) {
-      continue;
+  // YouTube may return JSON3, XML captions, or an error page.
+  const asJson = tryParseJson(raw);
+  if (asJson) {
+    const events = asJson?.events;
+    if (!Array.isArray(events)) {
+      return '';
     }
-    const text = event.segs
-      .map((seg: any) => decodeHtmlEntities(String(seg?.utf8 ?? '')))
-      .join('')
-      .trim();
 
-    if (text) {
-      lines.push(text);
+    const lines: string[] = [];
+    for (const event of events) {
+      if (!Array.isArray(event?.segs)) {
+        continue;
+      }
+      const text = event.segs
+        .map((seg: any) => decodeHtmlEntities(String(seg?.utf8 ?? '')))
+        .join('')
+        .trim();
+
+      if (text) {
+        lines.push(text);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  return extractTranscriptFromXml(raw);
+}
+
+function decodeHtmlEntities(text: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(text, 'text/html');
+  return doc.documentElement.textContent ?? text;
+}
+
+function tryParseJson(text: string): any | null {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function extractTranscriptFromXml(xmlText: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'application/xml');
+  const parseError = doc.querySelector('parsererror');
+  if (parseError) {
+    return '';
+  }
+
+  const nodes = Array.from(doc.querySelectorAll('text'));
+  const lines = nodes
+    .map((node) => decodeHtmlEntities(node.textContent ?? '').trim())
+    .filter((line) => line.length > 0);
+
+  return lines.join('\n');
+}
+
+async function fetchTranscriptFromTimedText(videoId: string): Promise<string> {
+  const pageLang = (document.documentElement.lang || 'ja').toLowerCase();
+  const langCandidates = Array.from(new Set([pageLang, 'ja', 'en']));
+  const kindCandidates = ['asr', ''];
+
+  for (const lang of langCandidates) {
+    for (const kind of kindCandidates) {
+      const params = new URLSearchParams({
+        v: videoId,
+        lang,
+        fmt: 'json3'
+      });
+      if (kind) {
+        params.set('kind', kind);
+      }
+
+      const url = `https://www.youtube.com/api/timedtext?${params.toString()}`;
+      const text = await fetchTranscript(url);
+      if (text.trim()) {
+        return text;
+      }
     }
   }
 
-  return lines.join('\n');
+  return '';
+}
+
+async function fetchTranscriptFromDomPanel(): Promise<string> {
+  const existing = collectTranscriptSegmentsFromDom();
+  if (existing.trim()) {
+    return existing;
+  }
+
+  await tryOpenTranscriptPanel();
+  const appeared = await waitFor(() => collectTranscriptSegmentsFromDom(), 3000, 120);
+  return appeared.trim();
+}
+
+function collectTranscriptSegmentsFromDom(): string {
+  const segmentSelectors = [
+    'ytd-transcript-segment-renderer .segment-text',
+    'ytd-transcript-segment-renderer yt-formatted-string',
+    'ytd-engagement-panel-section-list-renderer[visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED"] ytd-transcript-segment-renderer'
+  ];
+
+  for (const selector of segmentSelectors) {
+    const nodes = Array.from(document.querySelectorAll(selector));
+    const lines = nodes
+      .map((node) => (node.textContent ?? '').trim())
+      .filter((line) => line.length > 0);
+
+    if (lines.length > 0) {
+      return lines.join('\n');
+    }
+  }
+
+  return '';
+}
+
+async function tryOpenTranscriptPanel(): Promise<void> {
+  const directTriggerSelectors = [
+    'button[aria-label*="transcript" i]',
+    'button[aria-label*="文字起こし"]',
+    'ytd-video-description-transcript-section-renderer button',
+    'tp-yt-paper-button[aria-label*="transcript" i]',
+    'tp-yt-paper-button[aria-label*="文字起こし"]'
+  ];
+
+  if (clickFirstMatching(directTriggerSelectors)) {
+    await sleep(300);
+    return;
+  }
+
+  const menuButtons = [
+    'ytd-menu-renderer yt-icon-button button',
+    'button[aria-label*="More actions" i]',
+    'button[aria-label*="その他の操作"]'
+  ];
+  if (clickFirstMatching(menuButtons)) {
+    await sleep(300);
+  }
+
+  const menuItems = Array.from(
+    document.querySelectorAll(
+      'ytd-menu-service-item-renderer,tp-yt-paper-item,ytd-menu-navigation-item-renderer'
+    )
+  ) as HTMLElement[];
+
+  for (const item of menuItems) {
+    const label = (item.textContent ?? '').toLowerCase();
+    if (label.includes('transcript') || label.includes('文字起こし')) {
+      item.click();
+      await sleep(300);
+      return;
+    }
+  }
+}
+
+function clickFirstMatching(selectors: string[]): boolean {
+  for (const selector of selectors) {
+    const node = document.querySelector(selector);
+    if (!(node instanceof HTMLElement)) {
+      continue;
+    }
+    node.click();
+    return true;
+  }
+  return false;
+}
+
+async function waitFor(
+  producer: () => string,
+  timeoutMs: number,
+  intervalMs: number
+): Promise<string> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const value = producer();
+    if (value.trim()) {
+      return value;
+    }
+    await sleep(intervalMs);
+  }
+  return '';
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }

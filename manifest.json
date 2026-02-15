@@ -19,7 +19,7 @@
   "action": {
     "default_title": "Summarize to Obsidian"
   },
-  "options_page": "options.html",
+  "options_page": "src/options/index.html",
   "content_scripts": [
     {
       "matches": ["https://www.youtube.com/watch*"],

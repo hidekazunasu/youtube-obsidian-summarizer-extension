@@ -6,6 +6,12 @@ describe('buildNote', () => {
   it('renders frontmatter and body sections', () => {
     const note = buildNote(sampleVideo, sampleSummary);
     expect(note).toContain('source: youtube');
+    expect(note).toContain('tags:');
+    expect(note).toContain('  - youtube');
+    expect(note).toContain('  - youtube/my-channel');
+    expect(note).toContain('  - topic/llm');
+    expect(note).toContain('  - topic/openai');
+    expect(note).toContain('  - a');
     expect(note).toContain('## Summary');
     expect(note).toContain('## Key Points');
     expect(note).toContain('## Keywords');

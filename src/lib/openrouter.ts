@@ -12,6 +12,7 @@ interface ParsedSummary {
   summary_lines: string[];
   key_points: string[];
   keywords: string[];
+  broad_tags: string[];
 }
 
 export async function summarizeVideo(
@@ -34,7 +35,7 @@ export async function summarizeVideo(
         {
           role: 'system',
           content:
-            'You summarize YouTube transcripts. Return strict JSON with summary_lines, key_points, keywords.'
+            'You summarize YouTube transcripts. Return strict JSON with summary_lines, key_points, keywords, broad_tags.'
         },
         {
           role: 'user',
@@ -60,6 +61,7 @@ export async function summarizeVideo(
     summaryLines: parsed.summary_lines,
     keyPoints: parsed.key_points,
     keywords: parsed.keywords,
+    broadTags: parsed.broad_tags,
     model: settings.openrouterModel
   };
 }
@@ -71,6 +73,7 @@ export function buildPrompt(video: VideoData, language: string): string {
     '- summary_lines: 3-5 lines',
     '- key_points: 5-10 bullet points (as array items)',
     '- keywords: 3-8 short terms',
+    '- broad_tags: 2-6 broad topic tags in lowercase (e.g. llm, chatgpt, openai, ai, programming, finance, health, startup, marketing, design)',
     '',
     `Title: ${video.title}`,
     `Channel: ${video.channel}`,
@@ -87,11 +90,13 @@ export function parseSummaryJson(raw: string): ParsedSummary {
   const summaryLines = ensureStringArray(parsed.summary_lines, 3, 5);
   const keyPoints = ensureStringArray(parsed.key_points, 5, 10);
   const keywords = ensureStringArray(parsed.keywords, 3, 8);
+  const broadTags = ensureStringArray(parsed.broad_tags, 2, 6);
 
   return {
     summary_lines: summaryLines,
     key_points: keyPoints,
-    keywords
+    keywords,
+    broad_tags: broadTags
   };
 }
 

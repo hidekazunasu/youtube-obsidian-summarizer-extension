@@ -23,6 +23,7 @@ export interface SummaryResult {
   summaryLines: string[];
   keyPoints: string[];
   keywords: string[];
+  broadTags: string[];
   model: string;
 }
 

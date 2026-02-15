@@ -2,6 +2,7 @@ import type { ExtensionSettings, NotePayload, SummaryResult, VideoData } from '.
 import { applyPattern, formatDate, sanitizePathSegment } from './utils';
 
 export function buildNote(video: VideoData, summary: SummaryResult): string {
+  const tags = buildAutoTags(video.channel, summary.keywords, summary.broadTags);
   const yaml = [
     '---',
     'source: youtube',
@@ -11,6 +12,8 @@ export function buildNote(video: VideoData, summary: SummaryResult): string {
     `url: "${escapeYaml(video.url)}"`,
     `saved_at: "${new Date().toISOString()}"`,
     `model: "${escapeYaml(summary.model)}"`,
+    'tags:',
+    ...tags.map((tag) => `  - ${tag}`),
     '---'
   ].join('\n');
 
@@ -60,4 +63,54 @@ export function buildNotePayload(
 
 function escapeYaml(value: string): string {
   return value.replace(/"/g, '\\"');
+}
+
+function buildAutoTags(
+  channel: string,
+  keywords: string[],
+  broadTags: string[]
+): string[] {
+  const baseTags = ['youtube'];
+  const channelTag = toTagSegment(channel);
+  if (channelTag) {
+    baseTags.push(`youtube/${channelTag}`);
+  }
+
+  const keywordTags = keywords
+    .map((keyword) => toTagSegment(keyword))
+    .filter((tag): tag is string => tag.length > 0);
+
+  const broadTopicTags = broadTags
+    .map((tag) => toTagSegment(tag))
+    .filter((tag): tag is string => tag.length > 0)
+    .map((tag) => `topic/${tag}`);
+
+  return dedupeCaseInsensitive([...baseTags, ...broadTopicTags, ...keywordTags]).slice(0, 20);
+}
+
+function toTagSegment(input: string): string {
+  const normalized = input
+    .trim()
+    .replace(/^#+/, '')
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}_/-]+/gu, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-/]+|[-/]+$/g, '');
+
+  return normalized;
+}
+
+function dedupeCaseInsensitive(values: string[]): string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const value of values) {
+    const key = value.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    output.push(value);
+  }
+  return output;
 }

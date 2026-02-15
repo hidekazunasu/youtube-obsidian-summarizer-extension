@@ -1,6 +1,12 @@
 import type { ExtensionSettings } from './types';
 
 const SETTINGS_KEY = 'settings';
+const LAST_ERROR_KEY = 'last_error_record';
+
+export interface LastErrorRecord {
+  at: string;
+  text: string;
+}
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   openrouterApiKey: '',
@@ -36,4 +42,27 @@ export function mergeWithDefaults(
     ...DEFAULT_SETTINGS,
     ...partial
   };
+}
+
+export async function getLastErrorRecord(): Promise<LastErrorRecord | null> {
+  const stored = await chrome.storage.local.get(LAST_ERROR_KEY);
+  const raw = stored[LAST_ERROR_KEY] as LastErrorRecord | undefined;
+  if (!raw?.text) {
+    return null;
+  }
+  return raw;
+}
+
+export async function saveLastErrorRecord(text: string): Promise<void> {
+  const record: LastErrorRecord = {
+    at: new Date().toISOString(),
+    text
+  };
+  await chrome.storage.local.set({
+    [LAST_ERROR_KEY]: record
+  });
+}
+
+export async function clearLastErrorRecord(): Promise<void> {
+  await chrome.storage.local.remove(LAST_ERROR_KEY);
 }

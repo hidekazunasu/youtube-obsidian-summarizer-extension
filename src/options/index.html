@@ -54,10 +54,26 @@
         box-sizing: border-box;
       }
 
+      textarea {
+        width: 100%;
+        min-height: 140px;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #bca47d;
+        box-sizing: border-box;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
       .actions {
         display: flex;
         gap: 8px;
         margin-top: 16px;
+        flex-wrap: wrap;
+      }
+
+      .error-pane {
+        margin-top: 20px;
       }
 
       button {
@@ -120,6 +136,14 @@
         <button id="reset" type="button">デフォルトに戻す</button>
       </div>
       <div id="status"></div>
+      <div class="error-pane">
+        <label for="lastErrorText">Last Error（コピペ用）</label>
+        <textarea id="lastErrorText" readonly></textarea>
+        <div class="actions">
+          <button id="copyLastError" type="button">エラーをコピー</button>
+          <button id="clearLastError" type="button">エラーをクリア</button>
+        </div>
+      </div>
     </main>
     <script type="module" src="./options.ts"></script>
   </body>

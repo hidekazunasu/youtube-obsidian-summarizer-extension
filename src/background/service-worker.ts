@@ -1,7 +1,13 @@
 import { buildNotePayload } from '../lib/note';
 import { summarizeVideo } from '../lib/openrouter';
 import { saveToObsidian } from '../lib/obsidian';
-import { DEFAULT_SETTINGS, getSettings, saveSettings } from '../lib/settings';
+import {
+  clearLastErrorRecord,
+  DEFAULT_SETTINGS,
+  getSettings,
+  saveLastErrorRecord,
+  saveSettings
+} from '../lib/settings';
 import type {
   CollectVideoDataMessageResponse,
   ExtensionSettings,
@@ -17,20 +23,22 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.action.onClicked.addListener(async (tab) => {
   try {
-    if (!tab.id || !tab.url?.includes('youtube.com/watch')) {
-      await notify('YouTube watchページで実行してください。');
+    if (!tab.id) {
+      return;
+    }
+
+    if (!tab.url?.includes('youtube.com/watch')) {
+      await showAlert(tab.id, 'YouTube watchページで実行してください。');
       return;
     }
 
     const settings = await getSettings();
     const validationError = validateSettings(settings);
     if (validationError) {
-      await notify(validationError);
+      await showAlert(tab.id, validationError);
       await chrome.runtime.openOptionsPage();
       return;
     }
-
-    await notify('要約を開始します...');
 
     const videoData = await collectVideoData(tab.id);
     const summary = await summarizeVideo(videoData, settings);
@@ -46,14 +54,22 @@ chrome.action.onClicked.addListener(async (tab) => {
         ? '（URIフォールバック）'
         : '（REST API）';
 
-    await notify(`保存完了 ${suffix}\n${note.path}`);
+    await clearLastErrorRecord();
+    await showAlert(tab.id, `保存完了 ${suffix}\n${note.path}`);
   } catch (err) {
     const message = userSafeError(err);
-    await notify(`失敗: ${message}`);
+    await saveLastErrorRecord(formatErrorForClipboard(err));
+    await showAlert(tab.id, `失敗: ${message}`);
   }
 });
 
 async function collectVideoData(tabId: number): Promise<VideoData> {
+  // Ensure content script is present even on already-open tabs after install/update.
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ['content.js']
+  });
+
   const response = (await chrome.tabs.sendMessage(tabId, {
     type: 'COLLECT_VIDEO_DATA'
   })) as CollectVideoDataMessageResponse;
@@ -85,13 +101,23 @@ function validateSettings(settings: ExtensionSettings): string | null {
   return null;
 }
 
-async function notify(message: string): Promise<void> {
-  await chrome.notifications.create({
-    type: 'basic',
-    iconUrl: 'icon-128.png',
-    title: 'YouTube to Obsidian',
-    message
-  });
+async function showAlert(tabId: number, message: string): Promise<void> {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (msg: string) => {
+        window.alert(msg);
+      },
+      args: [message]
+    });
+    return;
+  } catch (error) {
+    console.warn('Alert injection failed. Falling back to badge.', error);
+  }
+
+  await chrome.action.setBadgeBackgroundColor({ color: '#9b3d00' });
+  await chrome.action.setBadgeText({ text: '!' });
+  await chrome.action.setTitle({ title: `YouTube to Obsidian: ${message}` });
 }
 
 function userSafeError(err: unknown): string {
@@ -99,4 +125,12 @@ function userSafeError(err: unknown): string {
     return err.message.slice(0, 300);
   }
   return String(err).slice(0, 300);
+}
+
+function formatErrorForClipboard(err: unknown): string {
+  if (err instanceof Error) {
+    const stack = err.stack ? `\nStack:\n${err.stack}` : '';
+    return `${err.name}: ${err.message}${stack}`;
+  }
+  return String(err);
 }
