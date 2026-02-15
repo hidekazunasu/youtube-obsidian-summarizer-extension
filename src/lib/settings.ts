@@ -1,4 +1,11 @@
 import type { ExtensionSettings } from './types';
+import {
+  storageLocalGet,
+  storageLocalRemove,
+  storageLocalSet,
+  storageSyncGet,
+  storageSyncSet
+} from './webext-api';
 
 const SETTINGS_KEY = 'settings';
 const LAST_ERROR_KEY = 'last_error_record';
@@ -21,7 +28,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
 };
 
 export async function getSettings(): Promise<ExtensionSettings> {
-  const stored = await chrome.storage.sync.get(SETTINGS_KEY);
+  const stored = await storageSyncGet(SETTINGS_KEY);
   const raw = stored[SETTINGS_KEY] as Partial<ExtensionSettings> | undefined;
   return {
     ...DEFAULT_SETTINGS,
@@ -30,7 +37,7 @@ export async function getSettings(): Promise<ExtensionSettings> {
 }
 
 export async function saveSettings(settings: ExtensionSettings): Promise<void> {
-  await chrome.storage.sync.set({
+  await storageSyncSet({
     [SETTINGS_KEY]: settings
   });
 }
@@ -45,7 +52,7 @@ export function mergeWithDefaults(
 }
 
 export async function getLastErrorRecord(): Promise<LastErrorRecord | null> {
-  const stored = await chrome.storage.local.get(LAST_ERROR_KEY);
+  const stored = await storageLocalGet(LAST_ERROR_KEY);
   const raw = stored[LAST_ERROR_KEY] as LastErrorRecord | undefined;
   if (!raw?.text) {
     return null;
@@ -58,11 +65,11 @@ export async function saveLastErrorRecord(text: string): Promise<void> {
     at: new Date().toISOString(),
     text
   };
-  await chrome.storage.local.set({
+  await storageLocalSet({
     [LAST_ERROR_KEY]: record
   });
 }
 
 export async function clearLastErrorRecord(): Promise<void> {
-  await chrome.storage.local.remove(LAST_ERROR_KEY);
+  await storageLocalRemove(LAST_ERROR_KEY);
 }

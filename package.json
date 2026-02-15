@@ -5,7 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cp manifest.json dist/ && cp public/icon-128.png dist/",
+    "build": "npm run build:chrome",
+    "build:chrome": "node scripts/build-browser.mjs chrome",
+    "build:firefox": "node scripts/build-browser.mjs firefox",
+    "build:all": "node scripts/build-browser.mjs all",
+    "package:release": "npm run build:all && node scripts/package-release.mjs",
+    "release:check": "node scripts/release-check.mjs",
     "test": "vitest run"
   },
   "devDependencies": {

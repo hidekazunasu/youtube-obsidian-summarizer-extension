@@ -1,4 +1,5 @@
 import type { ExtensionSettings, NotePayload, SaveResult } from './types';
+import { tabsCreate } from './webext-api';
 
 interface SaveDeps {
   fetchImpl?: typeof fetch;
@@ -101,7 +102,7 @@ function encodePathSegments(path: string): string {
 }
 
 async function defaultOpenUri(uri: string): Promise<void> {
-  await chrome.tabs.create({ url: uri, active: false });
+  await tabsCreate(uri, false);
 }
 
 function toMessage(value: unknown): string {

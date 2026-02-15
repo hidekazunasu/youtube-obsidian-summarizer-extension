@@ -3,8 +3,9 @@ import type {
   CollectVideoDataMessageResponse,
   VideoData
 } from '../lib/types';
+import { onRuntimeMessage } from '../lib/webext-api';
 
-chrome.runtime.onMessage.addListener((message: CollectVideoDataMessage, _sender, sendResponse) => {
+onRuntimeMessage((message: CollectVideoDataMessage, _sender, sendResponse) => {
   if (message.type !== 'COLLECT_VIDEO_DATA') {
     return;
   }

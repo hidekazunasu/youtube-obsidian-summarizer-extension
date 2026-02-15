@@ -8,20 +8,32 @@ import {
   saveLastErrorRecord,
   saveSettings
 } from '../lib/settings';
+import {
+  actionSetBadgeBackgroundColor,
+  actionSetBadgeText,
+  actionSetTitle,
+  executeScriptFile,
+  executeScriptFunction,
+  onActionClicked,
+  onInstalled,
+  openOptionsPage,
+  storageSyncGet,
+  tabsSendMessage
+} from '../lib/webext-api';
 import type {
   CollectVideoDataMessageResponse,
   ExtensionSettings,
   VideoData
 } from '../lib/types';
 
-chrome.runtime.onInstalled.addListener(async () => {
-  const current = await chrome.storage.sync.get('settings');
+onInstalled(async () => {
+  const current = await storageSyncGet('settings');
   if (!current.settings) {
     await saveSettings(DEFAULT_SETTINGS);
   }
 });
 
-chrome.action.onClicked.addListener(async (tab) => {
+onActionClicked(async (tab) => {
   try {
     if (!tab.id) {
       return;
@@ -36,7 +48,7 @@ chrome.action.onClicked.addListener(async (tab) => {
     const validationError = validateSettings(settings);
     if (validationError) {
       await showAlert(tab.id, validationError);
-      await chrome.runtime.openOptionsPage();
+      await openOptionsPage();
       return;
     }
 
@@ -65,14 +77,11 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 async function collectVideoData(tabId: number): Promise<VideoData> {
   // Ensure content script is present even on already-open tabs after install/update.
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    files: ['content.js']
-  });
+  await executeScriptFile(tabId, 'content.js');
 
-  const response = (await chrome.tabs.sendMessage(tabId, {
+  const response = await tabsSendMessage<CollectVideoDataMessageResponse>(tabId, {
     type: 'COLLECT_VIDEO_DATA'
-  })) as CollectVideoDataMessageResponse;
+  });
 
   if (!response) {
     throw new Error('content scriptから応答がありません。ページを再読み込みしてください。');
@@ -103,21 +112,21 @@ function validateSettings(settings: ExtensionSettings): string | null {
 
 async function showAlert(tabId: number, message: string): Promise<void> {
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: (msg: string) => {
+    await executeScriptFunction(
+      tabId,
+      (msg: string) => {
         window.alert(msg);
       },
-      args: [message]
-    });
+      [message]
+    );
     return;
   } catch (error) {
     console.warn('Alert injection failed. Falling back to badge.', error);
   }
 
-  await chrome.action.setBadgeBackgroundColor({ color: '#9b3d00' });
-  await chrome.action.setBadgeText({ text: '!' });
-  await chrome.action.setTitle({ title: `YouTube to Obsidian: ${message}` });
+  await actionSetBadgeBackgroundColor('#9b3d00');
+  await actionSetBadgeText('!');
+  await actionSetTitle(`YouTube to Obsidian: ${message}`);
 }
 
 function userSafeError(err: unknown): string {
