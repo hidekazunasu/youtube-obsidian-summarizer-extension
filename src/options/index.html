@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YouTube to Obsidian Settings</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f2ea;
+        --card: #fff8eb;
+        --border: #b59d76;
+        --text: #1f1a12;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", sans-serif;
+        background: radial-gradient(circle at top left, #f8dfb7, var(--bg));
+        color: var(--text);
+      }
+
+      main {
+        max-width: 900px;
+        margin: 24px auto;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+      }
+
+      h1 {
+        margin-top: 0;
+        font-size: 1.4rem;
+      }
+
+      .grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      }
+
+      label {
+        display: block;
+        font-size: 0.9rem;
+        margin-bottom: 4px;
+      }
+
+      input {
+        width: 100%;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #bca47d;
+        box-sizing: border-box;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      button {
+        border: 1px solid #604516;
+        border-radius: 8px;
+        padding: 8px 12px;
+        background: #fff;
+        cursor: pointer;
+      }
+
+      #status {
+        margin-top: 12px;
+        min-height: 1.2em;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>YouTube to Obsidian 設定</h1>
+      <div class="grid">
+        <div>
+          <label for="openrouterApiKey">OpenRouter API Key</label>
+          <input id="openrouterApiKey" type="password" />
+        </div>
+        <div>
+          <label for="openrouterModel">OpenRouter Model</label>
+          <input id="openrouterModel" type="text" />
+        </div>
+        <div>
+          <label for="summaryLanguage">Summary Language</label>
+          <input id="summaryLanguage" type="text" />
+        </div>
+        <div>
+          <label for="obsidianVaultName">Obsidian Vault Name</label>
+          <input id="obsidianVaultName" type="text" />
+        </div>
+        <div>
+          <label for="obsidianFolderPattern">Obsidian Folder Pattern</label>
+          <input id="obsidianFolderPattern" type="text" />
+        </div>
+        <div>
+          <label for="obsidianFilenamePattern">Obsidian Filename Pattern</label>
+          <input id="obsidianFilenamePattern" type="text" />
+        </div>
+        <div>
+          <label for="obsidianRestEnabled">Use Obsidian REST API (true/false)</label>
+          <input id="obsidianRestEnabled" type="text" />
+        </div>
+        <div>
+          <label for="obsidianRestBaseUrl">Obsidian REST Base URL</label>
+          <input id="obsidianRestBaseUrl" type="text" />
+        </div>
+        <div>
+          <label for="obsidianRestApiKey">Obsidian REST API Key</label>
+          <input id="obsidianRestApiKey" type="password" />
+        </div>
+      </div>
+      <div class="actions">
+        <button id="save" type="button">保存</button>
+        <button id="reset" type="button">デフォルトに戻す</button>
+      </div>
+      <div id="status"></div>
+    </main>
+    <script type="module" src="./options.ts"></script>
+  </body>
+</html>
