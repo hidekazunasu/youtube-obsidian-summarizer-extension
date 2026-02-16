@@ -13,9 +13,7 @@ const SETTINGS_SECRETS_KEY = 'settings_secrets';
 const LEGACY_SETTINGS_KEY = 'settings';
 const LAST_ERROR_KEY = 'last_error_record';
 
-const SECRET_KEYS = ['openrouterApiKey', 'obsidianRestApiKey'] as const;
-
-type SecretKey = (typeof SECRET_KEYS)[number];
+type SecretKey = 'openrouterApiKey' | 'obsidianRestApiKey';
 type SettingsSecrets = Pick<ExtensionSettings, SecretKey>;
 type SettingsPublic = Omit<ExtensionSettings, SecretKey>;
 
@@ -127,26 +125,17 @@ async function migrateLegacySettings(
 }
 
 function pickPublicSettings(input: Partial<ExtensionSettings>): SettingsPublic {
-  const {
-    openrouterApiKey: _openrouterApiKey,
-    obsidianRestApiKey: _obsidianRestApiKey,
-    ...publicPart
-  } = input;
-
-  const defaults = pickPublicSettingsDefaults();
   return {
-    ...defaults,
-    ...(publicPart as Partial<SettingsPublic>)
+    openrouterModel: input.openrouterModel ?? DEFAULT_SETTINGS.openrouterModel,
+    obsidianVaultName: input.obsidianVaultName ?? DEFAULT_SETTINGS.obsidianVaultName,
+    obsidianFolderPattern:
+      input.obsidianFolderPattern ?? DEFAULT_SETTINGS.obsidianFolderPattern,
+    obsidianFilenamePattern:
+      input.obsidianFilenamePattern ?? DEFAULT_SETTINGS.obsidianFilenamePattern,
+    obsidianRestEnabled: input.obsidianRestEnabled ?? DEFAULT_SETTINGS.obsidianRestEnabled,
+    obsidianRestBaseUrl: input.obsidianRestBaseUrl ?? DEFAULT_SETTINGS.obsidianRestBaseUrl,
+    summaryLanguage: input.summaryLanguage ?? DEFAULT_SETTINGS.summaryLanguage
   };
-}
-
-function pickPublicSettingsDefaults(): SettingsPublic {
-  const {
-    openrouterApiKey: _openrouterApiKey,
-    obsidianRestApiKey: _obsidianRestApiKey,
-    ...publicDefaults
-  } = DEFAULT_SETTINGS;
-  return publicDefaults;
 }
 
 function pickSecretSettings(input: Partial<ExtensionSettings>): SettingsSecrets {
