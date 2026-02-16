@@ -7,13 +7,14 @@ describe('buildNote', () => {
     const fixed = new Date('2026-02-15T10:00:00.000Z');
     const note = buildNote(sampleVideo, sampleSummary, fixed);
     expect(note).toContain('source: youtube');
-    expect(note).toContain('saved_at: "2026-02-15T10\\:00\\:00.000Z"');
-    expect(note).toContain('tags:');
-    expect(note).toContain('  - youtube');
-    expect(note).toContain('  - youtube/my-channel');
-    expect(note).toContain('  - topic/llm');
-    expect(note).toContain('  - topic/openai');
-    expect(note).toContain('  - a');
+    expect(note).toContain('saved_at: "2026-02-15T10:00:00.000Z"');
+    expect(note).not.toContain('\ntags:\n');
+    expect(note).toContain('# Tag');
+    expect(note).toContain('#youtube');
+    expect(note).toContain('#youtube/my-channel');
+    expect(note).toContain('#topic/llm');
+    expect(note).toContain('#topic/openai');
+    expect(note).toContain('#a');
     expect(note).toContain('## Summary');
     expect(note).toContain('## Key Points');
     expect(note).toContain('## Keywords');
@@ -30,7 +31,7 @@ describe('buildNote', () => {
       fixed
     );
 
-    expect(note).toContain('title: "A\\:B \\#C \\[D\\] \\{E\\} \\"F\\" \\\\ G\\nH\\rI"');
+    expect(note).toContain('title: "A:B #C [D] {E} \\"F\\" \\\\ G\\nH\\rI"');
   });
 });
 

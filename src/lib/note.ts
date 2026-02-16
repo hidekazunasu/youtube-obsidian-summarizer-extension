@@ -16,8 +16,6 @@ export function buildNote(
     `url: "${escapeYaml(video.url)}"`,
     `saved_at: "${escapeYaml(now.toISOString())}"`,
     `model: "${escapeYaml(summary.model)}"`,
-    'tags:',
-    ...tags.map((tag) => `  - ${tag}`),
     '---'
   ].join('\n');
 
@@ -30,6 +28,9 @@ export function buildNote(
     '',
     '## Keywords',
     summary.keywords.join(', '),
+    '',
+    '# Tag',
+    tags.map((tag) => `#${tag}`).join(' '),
     '',
     '## Source',
     video.url
@@ -71,13 +72,7 @@ function escapeYaml(value: string): string {
     .replace(/\\/g, '\\\\')
     .replace(/\r/g, '\\r')
     .replace(/\n/g, '\\n')
-    .replace(/"/g, '\\"')
-    .replace(/:/g, '\\:')
-    .replace(/#/g, '\\#')
-    .replace(/\[/g, '\\[')
-    .replace(/\]/g, '\\]')
-    .replace(/\{/g, '\\{')
-    .replace(/\}/g, '\\}');
+    .replace(/"/g, '\\"');
 }
 
 function buildAutoTags(channel: string, keywords: string[], broadTags: string[]): string[] {
