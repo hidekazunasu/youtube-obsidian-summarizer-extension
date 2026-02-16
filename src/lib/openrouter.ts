@@ -15,58 +15,103 @@ interface ParsedSummary {
   broad_tags: string[];
 }
 
+export interface SummarizeVideoDeps {
+  fetchImpl?: typeof fetch;
+  sleepMs?: (ms: number) => Promise<void>;
+  random?: () => number;
+}
+
+const MAX_TRANSCRIPT_CHARS = 30_000;
+const MAX_RETRIES = 3;
+const BASE_RETRY_MS = 500;
+
 export async function summarizeVideo(
   video: VideoData,
   settings: ExtensionSettings,
-  fetchImpl: typeof fetch = fetch
+  deps: SummarizeVideoDeps = {}
 ): Promise<SummaryResult> {
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const sleepMs = deps.sleepMs ?? defaultSleep;
+  const random = deps.random ?? Math.random;
+
   const prompt = buildPrompt(video, settings.summaryLanguage);
-  const response = await fetchImpl('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${settings.openrouterApiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://youtube.com',
-      'X-Title': 'youtube-obsidian-extension'
-    },
-    body: JSON.stringify({
-      model: settings.openrouterModel,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You summarize YouTube transcripts. Return strict JSON with summary_lines, key_points, keywords, broad_tags.'
+  let attempt = 0;
+
+  while (true) {
+    try {
+      const response = await fetchImpl('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${settings.openrouterApiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://youtube.com',
+          'X-Title': 'youtube-obsidian-extension'
         },
-        {
-          role: 'user',
-          content: prompt
+        body: JSON.stringify({
+          model: settings.openrouterModel,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You summarize YouTube transcripts. Return strict JSON with summary_lines, key_points, keywords, broad_tags.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        if (shouldRetryStatus(response.status) && attempt < MAX_RETRIES) {
+          await sleepMs(nextBackoffMs(attempt, random));
+          attempt += 1;
+          continue;
         }
-      ]
-    })
-  });
+        throw new Error(`OpenRouter API failed (${response.status}): ${body.slice(0, 200)}`);
+      }
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`OpenRouter API failed (${response.status}): ${body.slice(0, 200)}`);
+      const payload = (await response.json()) as OpenRouterChatResponse;
+      const content = payload.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error('OpenRouter returned an empty response.');
+      }
+
+      const parsed = parseSummaryJson(content);
+      return {
+        summaryLines: parsed.summary_lines,
+        keyPoints: parsed.key_points,
+        keywords: parsed.keywords,
+        broadTags: parsed.broad_tags,
+        model: settings.openrouterModel
+      };
+    } catch (error) {
+      if (attempt >= MAX_RETRIES) {
+        throw error;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      const networkLikeFailure =
+        message.includes('fetch') ||
+        message.includes('network') ||
+        message.includes('Failed to fetch');
+
+      if (!networkLikeFailure) {
+        throw error;
+      }
+
+      await sleepMs(nextBackoffMs(attempt, random));
+      attempt += 1;
+    }
   }
-
-  const payload = (await response.json()) as OpenRouterChatResponse;
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error('OpenRouter returned an empty response.');
-  }
-
-  const parsed = parseSummaryJson(content);
-  return {
-    summaryLines: parsed.summary_lines,
-    keyPoints: parsed.key_points,
-    keywords: parsed.keywords,
-    broadTags: parsed.broad_tags,
-    model: settings.openrouterModel
-  };
 }
 
 export function buildPrompt(video: VideoData, language: string): string {
+  const { text: transcript, truncated } = truncateTranscript(video.transcriptText);
+
   return [
     `Language: ${language}`,
     'Output rules:',
@@ -78,8 +123,11 @@ export function buildPrompt(video: VideoData, language: string): string {
     `Title: ${video.title}`,
     `Channel: ${video.channel}`,
     `URL: ${video.url}`,
+    truncated
+      ? `Transcript note: input was truncated to first ${MAX_TRANSCRIPT_CHARS} characters.`
+      : 'Transcript note: full transcript included.',
     'Transcript:',
-    video.transcriptText
+    transcript
   ].join('\n');
 }
 
@@ -100,11 +148,7 @@ export function parseSummaryJson(raw: string): ParsedSummary {
   };
 }
 
-function ensureStringArray(
-  value: unknown,
-  min: number,
-  max: number
-): string[] {
+function ensureStringArray(value: unknown, min: number, max: number): string[] {
   if (!Array.isArray(value)) {
     throw new Error('Expected array in model output.');
   }
@@ -160,4 +204,29 @@ function extractFirstJsonObject(input: string): string {
   }
 
   throw new Error('Unterminated JSON object in model output.');
+}
+
+function truncateTranscript(text: string): { text: string; truncated: boolean } {
+  if (text.length <= MAX_TRANSCRIPT_CHARS) {
+    return { text, truncated: false };
+  }
+
+  return {
+    text: `${text.slice(0, MAX_TRANSCRIPT_CHARS)}\n...[TRUNCATED]`,
+    truncated: true
+  };
+}
+
+function shouldRetryStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+function nextBackoffMs(attempt: number, random: () => number): number {
+  const base = BASE_RETRY_MS * 2 ** attempt;
+  const jitter = Math.floor(random() * 200);
+  return base + jitter;
+}
+
+async function defaultSleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }

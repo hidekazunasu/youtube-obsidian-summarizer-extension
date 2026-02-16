@@ -2,55 +2,165 @@ type GenericObject = Record<string, unknown>;
 
 type ScriptFunction<TArgs extends unknown[] = unknown[]> = (...args: TArgs) => unknown;
 
-const globalAny = globalThis as any;
-const isFirefoxStyleApi = typeof globalAny.browser !== 'undefined';
-const api = (globalAny.browser ?? globalAny.chrome) as any;
+type SendResponse = (payload: unknown) => void;
 
-function toError(): Error | null {
-  const runtime = globalAny.chrome?.runtime;
-  const lastError = runtime?.lastError;
+type RuntimeMessageListener = (
+  message: unknown,
+  sender: unknown,
+  sendResponse: SendResponse
+) => boolean | void;
+
+interface BrowserLikeApi {
+  runtime: {
+    onInstalled: { addListener: (listener: () => void | Promise<void>) => void };
+    onMessage: { addListener: (listener: RuntimeMessageListener) => void };
+    openOptionsPage: () => Promise<void>;
+  };
+  storage: {
+    sync: {
+      get: (key: string) => Promise<GenericObject>;
+      set: (values: GenericObject) => Promise<void>;
+      remove: (key: string) => Promise<void>;
+    };
+    local: {
+      get: (key: string) => Promise<GenericObject>;
+      set: (values: GenericObject) => Promise<void>;
+      remove: (key: string) => Promise<void>;
+    };
+  };
+  action: {
+    onClicked: {
+      addListener: (listener: (tab: { id?: number; url?: string }) => void | Promise<void>) => void;
+    };
+    setBadgeBackgroundColor: (details: { color: string }) => Promise<void>;
+    setBadgeText: (details: { text: string }) => Promise<void>;
+    setTitle: (details: { title: string }) => Promise<void>;
+  };
+  tabs: {
+    sendMessage: <TResponse = unknown>(tabId: number, payload: GenericObject) => Promise<TResponse>;
+    create: (details: { url: string; active: boolean }) => Promise<void>;
+  };
+  scripting: {
+    executeScript: (details: {
+      target: { tabId: number };
+      files?: string[];
+      func?: (...args: unknown[]) => unknown;
+      args?: unknown[];
+    }) => Promise<unknown>;
+  };
+}
+
+interface ChromeLikeApi {
+  runtime: {
+    lastError?: { message?: string };
+    onInstalled: { addListener: (listener: () => void | Promise<void>) => void };
+    onMessage: { addListener: (listener: RuntimeMessageListener) => void };
+    openOptionsPage: (callback?: () => void) => void;
+  };
+  storage: {
+    sync: {
+      get: (key: string, callback: (value: GenericObject) => void) => void;
+      set: (values: GenericObject, callback: () => void) => void;
+      remove: (key: string, callback: () => void) => void;
+    };
+    local: {
+      get: (key: string, callback: (value: GenericObject) => void) => void;
+      set: (values: GenericObject, callback: () => void) => void;
+      remove: (key: string, callback: () => void) => void;
+    };
+  };
+  action: {
+    onClicked: {
+      addListener: (listener: (tab: { id?: number; url?: string }) => void | Promise<void>) => void;
+    };
+    setBadgeBackgroundColor: (details: { color: string }) => Promise<void> | void;
+    setBadgeText: (details: { text: string }) => Promise<void> | void;
+    setTitle: (details: { title: string }) => Promise<void> | void;
+  };
+  tabs: {
+    sendMessage: <TResponse = unknown>(
+      tabId: number,
+      payload: GenericObject,
+      callback: (response: TResponse) => void
+    ) => void;
+    create: (details: { url: string; active: boolean }) => Promise<void> | void;
+  };
+  scripting: {
+    executeScript: (details: {
+      target: { tabId: number };
+      files?: string[];
+      func?: (...args: unknown[]) => unknown;
+      args?: unknown[];
+    }) => Promise<unknown> | void;
+  };
+}
+
+const browserApi = (globalThis as { browser?: BrowserLikeApi }).browser;
+const chromeApi = (globalThis as unknown as { chrome?: ChromeLikeApi }).chrome;
+const isFirefoxStyleApi = typeof browserApi !== 'undefined';
+const api: BrowserLikeApi | ChromeLikeApi | undefined = browserApi ?? chromeApi;
+
+function requireApi(): BrowserLikeApi | ChromeLikeApi {
+  if (!api) {
+    throw new Error('WebExtension API is unavailable in this runtime.');
+  }
+  return api;
+}
+
+function toChromeError(): Error | null {
+  const lastError = chromeApi?.runtime.lastError;
   if (!lastError) {
     return null;
   }
   return new Error(lastError.message ?? String(lastError));
 }
 
-export function getApi(): any {
-  return api;
+export function isWebExtAvailable(): boolean {
+  return typeof api !== 'undefined';
 }
 
 export function onInstalled(listener: () => void | Promise<void>): void {
-  api.runtime.onInstalled.addListener(listener);
+  requireApi().runtime.onInstalled.addListener(listener);
 }
 
 export function onActionClicked(
   listener: (tab: { id?: number; url?: string }) => void | Promise<void>
 ): void {
-  api.action.onClicked.addListener(listener);
+  requireApi().action.onClicked.addListener(listener);
 }
 
-export function onRuntimeMessage(
-  listener: (
-    message: unknown,
-    sender: unknown,
-    sendResponse: (payload: unknown) => void
-  ) => boolean | void
-): void {
-  api.runtime.onMessage.addListener(listener);
+export function onRuntimeMessage(listener: RuntimeMessageListener): void {
+  requireApi().runtime.onMessage.addListener(listener);
 }
 
 export async function openOptionsPage(): Promise<void> {
-  await Promise.resolve(api.runtime.openOptionsPage());
+  const currentApi = requireApi();
+  if (isFirefoxStyleApi) {
+    await (currentApi as BrowserLikeApi).runtime.openOptionsPage();
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    (currentApi as ChromeLikeApi).runtime.openOptionsPage(() => {
+      const err = toChromeError();
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
 }
 
 export async function storageSyncGet(key: string): Promise<GenericObject> {
+  const currentApi = requireApi();
   if (isFirefoxStyleApi) {
-    return (await api.storage.sync.get(key)) as GenericObject;
+    return await (currentApi as BrowserLikeApi).storage.sync.get(key);
   }
 
   return await new Promise<GenericObject>((resolve, reject) => {
-    api.storage.sync.get(key, (value: GenericObject) => {
-      const err = toError();
+    (currentApi as ChromeLikeApi).storage.sync.get(key, (value) => {
+      const err = toChromeError();
       if (err) {
         reject(err);
         return;
@@ -61,14 +171,34 @@ export async function storageSyncGet(key: string): Promise<GenericObject> {
 }
 
 export async function storageSyncSet(values: GenericObject): Promise<void> {
+  const currentApi = requireApi();
   if (isFirefoxStyleApi) {
-    await api.storage.sync.set(values);
+    await (currentApi as BrowserLikeApi).storage.sync.set(values);
     return;
   }
 
   await new Promise<void>((resolve, reject) => {
-    api.storage.sync.set(values, () => {
-      const err = toError();
+    (currentApi as ChromeLikeApi).storage.sync.set(values, () => {
+      const err = toChromeError();
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+export async function storageSyncRemove(key: string): Promise<void> {
+  const currentApi = requireApi();
+  if (isFirefoxStyleApi) {
+    await (currentApi as BrowserLikeApi).storage.sync.remove(key);
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    (currentApi as ChromeLikeApi).storage.sync.remove(key, () => {
+      const err = toChromeError();
       if (err) {
         reject(err);
         return;
@@ -79,13 +209,14 @@ export async function storageSyncSet(values: GenericObject): Promise<void> {
 }
 
 export async function storageLocalGet(key: string): Promise<GenericObject> {
+  const currentApi = requireApi();
   if (isFirefoxStyleApi) {
-    return (await api.storage.local.get(key)) as GenericObject;
+    return await (currentApi as BrowserLikeApi).storage.local.get(key);
   }
 
   return await new Promise<GenericObject>((resolve, reject) => {
-    api.storage.local.get(key, (value: GenericObject) => {
-      const err = toError();
+    (currentApi as ChromeLikeApi).storage.local.get(key, (value) => {
+      const err = toChromeError();
       if (err) {
         reject(err);
         return;
@@ -96,14 +227,15 @@ export async function storageLocalGet(key: string): Promise<GenericObject> {
 }
 
 export async function storageLocalSet(values: GenericObject): Promise<void> {
+  const currentApi = requireApi();
   if (isFirefoxStyleApi) {
-    await api.storage.local.set(values);
+    await (currentApi as BrowserLikeApi).storage.local.set(values);
     return;
   }
 
   await new Promise<void>((resolve, reject) => {
-    api.storage.local.set(values, () => {
-      const err = toError();
+    (currentApi as ChromeLikeApi).storage.local.set(values, () => {
+      const err = toChromeError();
       if (err) {
         reject(err);
         return;
@@ -114,14 +246,15 @@ export async function storageLocalSet(values: GenericObject): Promise<void> {
 }
 
 export async function storageLocalRemove(key: string): Promise<void> {
+  const currentApi = requireApi();
   if (isFirefoxStyleApi) {
-    await api.storage.local.remove(key);
+    await (currentApi as BrowserLikeApi).storage.local.remove(key);
     return;
   }
 
   await new Promise<void>((resolve, reject) => {
-    api.storage.local.remove(key, () => {
-      const err = toError();
+    (currentApi as ChromeLikeApi).storage.local.remove(key, () => {
+      const err = toChromeError();
       if (err) {
         reject(err);
         return;
@@ -133,7 +266,7 @@ export async function storageLocalRemove(key: string): Promise<void> {
 
 export async function executeScriptFile(tabId: number, file: string): Promise<void> {
   await Promise.resolve(
-    api.scripting.executeScript({
+    requireApi().scripting.executeScript({
       target: { tabId },
       files: [file]
     })
@@ -146,9 +279,9 @@ export async function executeScriptFunction<TArgs extends unknown[]>(
   args: TArgs
 ): Promise<void> {
   await Promise.resolve(
-    api.scripting.executeScript({
+    requireApi().scripting.executeScript({
       target: { tabId },
-      func,
+      func: func as (...args: unknown[]) => unknown,
       args
     })
   );
@@ -158,13 +291,14 @@ export async function tabsSendMessage<TResponse>(
   tabId: number,
   payload: GenericObject
 ): Promise<TResponse> {
+  const currentApi = requireApi();
   if (isFirefoxStyleApi) {
-    return (await api.tabs.sendMessage(tabId, payload)) as TResponse;
+    return await (currentApi as BrowserLikeApi).tabs.sendMessage<TResponse>(tabId, payload);
   }
 
   return await new Promise<TResponse>((resolve, reject) => {
-    api.tabs.sendMessage(tabId, payload, (response: TResponse) => {
-      const err = toError();
+    (currentApi as ChromeLikeApi).tabs.sendMessage<TResponse>(tabId, payload, (response) => {
+      const err = toChromeError();
       if (err) {
         reject(err);
         return;
@@ -175,17 +309,17 @@ export async function tabsSendMessage<TResponse>(
 }
 
 export async function tabsCreate(url: string, active = false): Promise<void> {
-  await Promise.resolve(api.tabs.create({ url, active }));
+  await Promise.resolve(requireApi().tabs.create({ url, active }));
 }
 
 export async function actionSetBadgeBackgroundColor(color: string): Promise<void> {
-  await Promise.resolve(api.action.setBadgeBackgroundColor({ color }));
+  await Promise.resolve(requireApi().action.setBadgeBackgroundColor({ color }));
 }
 
 export async function actionSetBadgeText(text: string): Promise<void> {
-  await Promise.resolve(api.action.setBadgeText({ text }));
+  await Promise.resolve(requireApi().action.setBadgeText({ text }));
 }
 
 export async function actionSetTitle(title: string): Promise<void> {
-  await Promise.resolve(api.action.setTitle({ title }));
+  await Promise.resolve(requireApi().action.setTitle({ title }));
 }

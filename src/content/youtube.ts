@@ -3,26 +3,62 @@ import type {
   CollectVideoDataMessageResponse,
   VideoData
 } from '../lib/types';
-import { onRuntimeMessage } from '../lib/webext-api';
 
-onRuntimeMessage((message: CollectVideoDataMessage, _sender, sendResponse) => {
-  if (message.type !== 'COLLECT_VIDEO_DATA') {
+export interface ResolveTranscriptDeps {
+  fetchFromTrackBaseUrl: (baseUrl: string) => Promise<string>;
+  fetchFromTimedText: (videoId: string) => Promise<string>;
+  fetchFromDomPanel: () => Promise<string>;
+}
+
+interface PlayerResponse {
+  captions?: {
+    playerCaptionsTracklistRenderer?: {
+      captionTracks?: Array<{ kind?: string; baseUrl?: string }>;
+    };
+  };
+  videoDetails?: {
+    videoId?: string;
+    author?: string;
+  };
+  microformat?: {
+    playerMicroformatRenderer?: {
+      publishDate?: string;
+    };
+  };
+}
+
+const defaultResolveTranscriptDeps: ResolveTranscriptDeps = {
+  fetchFromTrackBaseUrl: fetchTranscript,
+  fetchFromTimedText: fetchTranscriptFromTimedText,
+  fetchFromDomPanel: fetchTranscriptFromDomPanel
+};
+
+export function registerContentMessageHandler(): void {
+  const runtime = getRuntime();
+  if (!runtime) {
     return;
   }
 
-  void handleCollect()
-    .then((data): CollectVideoDataMessageResponse => ({ ok: true, data }))
-    .catch((err): CollectVideoDataMessageResponse => ({
-      ok: false,
-      code: err?.code ?? 'COLLECTION_ERROR',
-      message: err instanceof Error ? err.message : String(err)
-    }))
-    .then((payload) => {
-      sendResponse(payload);
-    });
+  runtime.onMessage.addListener((message: unknown, _sender: unknown, sendResponse: (payload: unknown) => void) => {
+    const typedMessage = message as CollectVideoDataMessage;
+    if (typedMessage.type !== 'COLLECT_VIDEO_DATA') {
+      return;
+    }
 
-  return true;
-});
+    void handleCollect()
+      .then((data): CollectVideoDataMessageResponse => ({ ok: true, data }))
+      .catch((err): CollectVideoDataMessageResponse => ({
+        ok: false,
+        code: err?.code ?? 'COLLECTION_ERROR',
+        message: err instanceof Error ? err.message : String(err)
+      }))
+      .then((payload) => {
+        sendResponse(payload);
+      });
+
+    return true;
+  });
+}
 
 async function handleCollect(): Promise<VideoData> {
   const url = new URL(location.href);
@@ -66,26 +102,35 @@ async function handleCollect(): Promise<VideoData> {
   };
 }
 
-async function resolveTranscript(captionTracks: any[], videoId: string): Promise<string> {
+export async function resolveTranscript(
+  captionTracks: Array<{ kind?: string; baseUrl?: string }>,
+  videoId: string,
+  deps: Partial<ResolveTranscriptDeps> = {}
+): Promise<string> {
+  const mergedDeps: ResolveTranscriptDeps = {
+    ...defaultResolveTranscriptDeps,
+    ...deps
+  };
+
   if (Array.isArray(captionTracks) && captionTracks.length > 0) {
-    const preferred =
-      captionTracks.find((track: any) => track.kind !== 'asr') ?? captionTracks[0];
-    const fromTrack = await fetchTranscript(preferred.baseUrl as string);
-    if (fromTrack.trim()) {
-      return fromTrack;
+    const preferred = captionTracks.find((track) => track.kind !== 'asr') ?? captionTracks[0];
+    if (preferred?.baseUrl) {
+      const fromTrack = await mergedDeps.fetchFromTrackBaseUrl(preferred.baseUrl);
+      if (fromTrack.trim()) {
+        return fromTrack;
+      }
     }
   }
 
-  const fromTimedText = await fetchTranscriptFromTimedText(videoId);
+  const fromTimedText = await mergedDeps.fetchFromTimedText(videoId);
   if (fromTimedText.trim()) {
     return fromTimedText;
   }
 
-  const fromDomPanel = await fetchTranscriptFromDomPanel();
-  return fromDomPanel;
+  return await mergedDeps.fetchFromDomPanel();
 }
 
-async function loadPlayerResponse(): Promise<any> {
+async function loadPlayerResponse(): Promise<PlayerResponse> {
   const html = await fetch(location.href, { credentials: 'include' }).then((r) => r.text());
 
   const marker = 'ytInitialPlayerResponse = ';
@@ -97,7 +142,7 @@ async function loadPlayerResponse(): Promise<any> {
   const start = markerIndex + marker.length;
   const jsonText = extractJsonObjectFrom(html, start);
   try {
-    return JSON.parse(jsonText);
+    return JSON.parse(jsonText) as PlayerResponse;
   } catch (error) {
     throw new Error(
       `Could not parse ytInitialPlayerResponse JSON: ${
@@ -107,7 +152,7 @@ async function loadPlayerResponse(): Promise<any> {
   }
 }
 
-function extractJsonObjectFrom(input: string, start: number): string {
+export function extractJsonObjectFrom(input: string, start: number): string {
   let depth = 0;
   let inString = false;
   let escaped = false;
@@ -164,7 +209,7 @@ async function fetchTranscript(baseUrl: string): Promise<string> {
   // YouTube may return JSON3, XML captions, or an error page.
   const asJson = tryParseJson(raw);
   if (asJson) {
-    const events = asJson?.events;
+    const events = (asJson as { events?: Array<{ segs?: Array<{ utf8?: string }> }> }).events;
     if (!Array.isArray(events)) {
       return '';
     }
@@ -175,7 +220,7 @@ async function fetchTranscript(baseUrl: string): Promise<string> {
         continue;
       }
       const text = event.segs
-        .map((seg: any) => decodeHtmlEntities(String(seg?.utf8 ?? '')))
+        .map((seg) => decodeHtmlEntities(String(seg?.utf8 ?? '')))
         .join('')
         .trim();
 
@@ -195,7 +240,7 @@ function decodeHtmlEntities(text: string): string {
   return doc.documentElement.textContent ?? text;
 }
 
-function tryParseJson(text: string): any | null {
+export function tryParseJson(text: string): unknown | null {
   try {
     return JSON.parse(text);
   } catch {
@@ -203,7 +248,7 @@ function tryParseJson(text: string): any | null {
   }
 }
 
-function extractTranscriptFromXml(xmlText: string): string {
+export function extractTranscriptFromXml(xmlText: string): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
   const parseError = doc.querySelector('parsererror');
@@ -347,4 +392,52 @@ async function waitFor(
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+if (getRuntime()) {
+  registerContentMessageHandler();
+}
+
+function getRuntime():
+  | {
+      onMessage: {
+        addListener: (
+          listener: (message: unknown, sender: unknown, sendResponse: (payload: unknown) => void) => boolean | void
+        ) => void;
+      };
+    }
+  | null {
+  const browserRuntime = (globalThis as unknown as { browser?: { runtime?: unknown } }).browser
+    ?.runtime;
+  if (browserRuntime) {
+    return browserRuntime as {
+      onMessage: {
+        addListener: (
+          listener: (
+            message: unknown,
+            sender: unknown,
+            sendResponse: (payload: unknown) => void
+          ) => boolean | void
+        ) => void;
+      };
+    };
+  }
+
+  const chromeRuntime = (globalThis as unknown as { chrome?: { runtime?: unknown } }).chrome
+    ?.runtime;
+  if (chromeRuntime) {
+    return chromeRuntime as {
+      onMessage: {
+        addListener: (
+          listener: (
+            message: unknown,
+            sender: unknown,
+            sendResponse: (payload: unknown) => void
+          ) => boolean | void
+        ) => void;
+      };
+    };
+  }
+
+  return null;
 }

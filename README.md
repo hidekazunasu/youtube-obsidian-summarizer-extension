@@ -15,6 +15,15 @@ YouTube動画ページで拡張機能アクションを押すと、字幕を Ope
 - REST失敗時は `obsidian://new` へフォールバック
 - 自動タグ付け（`topic/*` + keyword tags）
 
+## Manifest roles
+
+- `manifests/manifest.chrome.json` / `manifests/manifest.firefox.json`
+  - 配布用ビルドで使用される正式なマニフェスト
+- root `manifest.json`
+  - ローカル参照用（非配布）
+
+`npm run build:*` は `scripts/build-browser.mjs` 経由で `manifests/` を参照します。
+
 ## Setup
 
 ```bash
@@ -53,9 +62,11 @@ Build outputs:
 2. 「一時的なアドオンを読み込む」
 3. `dist/firefox/manifest.json` を選択
 
-## Development
+## Quality checks
 
 ```bash
+npm run typecheck
+npm run lint
 npm run test
 npm run build:all
 ```
@@ -72,3 +83,14 @@ Artifacts:
 - `artifacts/youtube-obsidian-firefox-vX.Y.Z.xpi`
 
 CI/Release details: `docs/release.md`
+
+## GitHub topics (manual)
+
+GitHub の repository Settings で以下 topics を手動設定してください。
+
+- `chrome-extension`
+- `firefox-extension`
+- `obsidian`
+- `youtube`
+- `typescript`
+- `openrouter`

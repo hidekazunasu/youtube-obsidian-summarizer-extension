@@ -3,3 +3,9 @@ dist
 .vite
 coverage
 artifacts
+.env
+.env.*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

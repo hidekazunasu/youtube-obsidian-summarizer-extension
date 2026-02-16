@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 
@@ -22,12 +22,15 @@ for (const browser of targets) {
   rmSync(outDir, { recursive: true, force: true });
   cpSync(baseDir, outDir, { recursive: true });
 
+  // Build always uses browser-specific manifests from manifests/, not root manifest.json.
   const manifestFile = resolve(root, 'manifests', `manifest.${browser}.json`);
   const manifestRaw = readFileSync(manifestFile, 'utf8');
   const manifestPatched = patchManifest(manifestRaw);
   writeFileSync(resolve(outDir, 'manifest.json'), manifestPatched, 'utf8');
 
-  cpSync(resolve(root, 'public', 'icon-128.png'), resolve(outDir, 'icon-128.png'));
+  for (const iconName of ['icon-16.png', 'icon-32.png', 'icon-48.png', 'icon-128.png']) {
+    cpSync(resolve(root, 'public', iconName), resolve(outDir, iconName));
+  }
   smokeCheck(outDir);
   console.log(`Built ${browser}: ${outDir}`);
 }
@@ -46,6 +49,9 @@ function smokeCheck(outDir) {
     'background.js',
     'content.js',
     'src/options/index.html',
+    'icon-16.png',
+    'icon-32.png',
+    'icon-48.png',
     'icon-128.png'
   ];
 

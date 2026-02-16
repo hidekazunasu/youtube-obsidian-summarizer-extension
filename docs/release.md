@@ -5,7 +5,7 @@
 - Default branch: `main`
 - Feature work: `feature/*`
 - Merge policy: PR required with at least 1 review
-- Required checks: CI (`npm run test`, `npm run build:all`)
+- Required checks: CI (`npm run typecheck`, `npm run lint`, `npm run test`, `npm run build:all`)
 
 ## Versioning
 
@@ -30,7 +30,8 @@
 ### CI (`.github/workflows/ci.yml`)
 
 - Trigger: push / pull_request
-- Steps: install, test, build all
+- Matrix: Node `20` / `22`
+- Steps: install, typecheck, lint, test, build all
 
 ### Release (`.github/workflows/release.yml`)
 

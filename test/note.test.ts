@@ -4,8 +4,10 @@ import { baseSettings, sampleSummary, sampleVideo } from './fixtures';
 
 describe('buildNote', () => {
   it('renders frontmatter and body sections', () => {
-    const note = buildNote(sampleVideo, sampleSummary);
+    const fixed = new Date('2026-02-15T10:00:00.000Z');
+    const note = buildNote(sampleVideo, sampleSummary, fixed);
     expect(note).toContain('source: youtube');
+    expect(note).toContain('saved_at: "2026-02-15T10\\:00\\:00.000Z"');
     expect(note).toContain('tags:');
     expect(note).toContain('  - youtube');
     expect(note).toContain('  - youtube/my-channel');
@@ -15,6 +17,20 @@ describe('buildNote', () => {
     expect(note).toContain('## Summary');
     expect(note).toContain('## Key Points');
     expect(note).toContain('## Keywords');
+  });
+
+  it('escapes yaml-sensitive characters', () => {
+    const fixed = new Date('2026-02-15T10:00:00.000Z');
+    const note = buildNote(
+      {
+        ...sampleVideo,
+        title: 'A:B #C [D] {E} "F" \\ G\nH\rI'
+      },
+      sampleSummary,
+      fixed
+    );
+
+    expect(note).toContain('title: "A\\:B \\#C \\[D\\] \\{E\\} \\"F\\" \\\\ G\\nH\\rI"');
   });
 });
 

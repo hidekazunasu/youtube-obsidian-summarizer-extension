@@ -1,7 +1,11 @@
 import type { ExtensionSettings, NotePayload, SummaryResult, VideoData } from './types';
 import { applyPattern, formatDate, sanitizePathSegment } from './utils';
 
-export function buildNote(video: VideoData, summary: SummaryResult): string {
+export function buildNote(
+  video: VideoData,
+  summary: SummaryResult,
+  now: Date = new Date()
+): string {
   const tags = buildAutoTags(video.channel, summary.keywords, summary.broadTags);
   const yaml = [
     '---',
@@ -10,7 +14,7 @@ export function buildNote(video: VideoData, summary: SummaryResult): string {
     `title: "${escapeYaml(video.title)}"`,
     `channel: "${escapeYaml(video.channel)}"`,
     `url: "${escapeYaml(video.url)}"`,
-    `saved_at: "${new Date().toISOString()}"`,
+    `saved_at: "${escapeYaml(now.toISOString())}"`,
     `model: "${escapeYaml(summary.model)}"`,
     'tags:',
     ...tags.map((tag) => `  - ${tag}`),
@@ -37,11 +41,12 @@ export function buildNote(video: VideoData, summary: SummaryResult): string {
 export function buildNotePayload(
   video: VideoData,
   summary: SummaryResult,
-  settings: ExtensionSettings
+  settings: ExtensionSettings,
+  now: Date = new Date()
 ): NotePayload {
   const safeChannel = sanitizePathSegment(video.channel);
   const safeTitle = sanitizePathSegment(video.title);
-  const today = formatDate();
+  const today = formatDate(now);
 
   const folder = applyPattern(settings.obsidianFolderPattern, {
     channel: safeChannel
@@ -57,19 +62,25 @@ export function buildNotePayload(
   const path = `${folder}/${filename}`.replace(/\/+/g, '/');
   return {
     path,
-    content: buildNote(video, summary)
+    content: buildNote(video, summary, now)
   };
 }
 
 function escapeYaml(value: string): string {
-  return value.replace(/"/g, '\\"');
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/"/g, '\\"')
+    .replace(/:/g, '\\:')
+    .replace(/#/g, '\\#')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
+    .replace(/\{/g, '\\{')
+    .replace(/\}/g, '\\}');
 }
 
-function buildAutoTags(
-  channel: string,
-  keywords: string[],
-  broadTags: string[]
-): string[] {
+function buildAutoTags(channel: string, keywords: string[], broadTags: string[]): string[] {
   const baseTags = ['youtube'];
   const channelTag = toTagSegment(channel);
   if (channelTag) {

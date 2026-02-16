@@ -6,6 +6,8 @@ interface SaveDeps {
   openUri?: (uri: string) => Promise<void>;
 }
 
+const MAX_OBSIDIAN_URI_LENGTH = 7_500;
+
 export async function saveToObsidian(
   note: NotePayload,
   settings: ExtensionSettings,
@@ -91,7 +93,13 @@ export function buildObsidianNewUri(note: NotePayload, vaultName: string): strin
   const vault = encodeURIComponent(vaultName);
   const encFolder = encodeURIComponent(folder);
   const encFile = encodeURIComponent(file);
-  return `obsidian://new?vault=${vault}&folder=${encFolder}&file=${encFile}&content=${content}`;
+  const uri = `obsidian://new?vault=${vault}&folder=${encFolder}&file=${encFile}&content=${content}`;
+  if (uri.length > MAX_OBSIDIAN_URI_LENGTH) {
+    throw new Error(
+      `Obsidian URI too long (${uri.length} > ${MAX_OBSIDIAN_URI_LENGTH}). Enable REST save or shorten note content.`
+    );
+  }
+  return uri;
 }
 
 function encodePathSegments(path: string): string {

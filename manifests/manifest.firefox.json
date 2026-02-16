@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube to Obsidian Summarizer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Summarize YouTube transcripts with OpenRouter and save notes to Obsidian.",
   "permissions": ["activeTab", "scripting", "storage", "notifications"],
   "host_permissions": [
@@ -10,6 +10,9 @@
     "http://127.0.0.1/*"
   ],
   "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
     "128": "icon-128.png"
   },
   "background": {
