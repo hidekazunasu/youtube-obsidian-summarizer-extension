@@ -20,6 +20,8 @@ YouTube動画ページで取得した字幕を LLM で要約し、Obsidian ノ�
 2. 要約
 - OpenRouter Chat Completions API を利用
 - `response_format: { type: "json_object" }` を指定
+- `summaryLanguage` で指定した言語で出力するようプロンプトで強制
+- 指定言語と実際の出力言語がズレた可能性を検知した場合は、完了通知へ注意文を追記
 - 出力フィールド:
   - `summary_lines`（3-5）
   - `key_points`（5-10）

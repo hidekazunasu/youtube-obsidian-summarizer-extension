@@ -81,12 +81,14 @@ export async function summarizeVideo(
       }
 
       const parsed = parseSummaryJson(content);
+      const languageNotice = detectLanguageNotice(parsed, settings.summaryLanguage);
       return {
         summaryLines: parsed.summary_lines,
         keyPoints: parsed.key_points,
         keywords: parsed.keywords,
         broadTags: parsed.broad_tags,
-        model: settings.openrouterModel
+        model: settings.openrouterModel,
+        languageNotice
       };
     } catch (error) {
       if (attempt >= MAX_RETRIES) {
@@ -111,9 +113,11 @@ export async function summarizeVideo(
 
 export function buildPrompt(video: VideoData, language: string): string {
   const { text: transcript, truncated } = truncateTranscript(video.transcriptText);
+  const target = toLanguageInstruction(language);
 
   return [
     `Language: ${language}`,
+    `All output text must be in ${target}.`,
     'Output rules:',
     '- summary_lines: 3-5 lines',
     '- key_points: 5-10 bullet points (as array items)',
@@ -162,6 +166,37 @@ function ensureStringArray(value: unknown, min: number, max: number): string[] {
   }
 
   return items;
+}
+
+function detectLanguageNotice(parsed: ParsedSummary, language: string): string | undefined {
+  const normalized = language.trim().toLowerCase();
+  const mergedText = [...parsed.summary_lines, ...parsed.key_points, ...parsed.keywords].join(' ');
+
+  if (normalized.startsWith('ja')) {
+    const japaneseCount = (
+      mergedText.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu) ?? []
+    ).length;
+    const latinCount = (mergedText.match(/[A-Za-z]/g) ?? []).length;
+
+    if (japaneseCount < 10 && latinCount > 50) {
+      return `注意: 選択言語（${language}）以外で要約された可能性があります。`;
+    }
+    return undefined;
+  }
+
+  if (normalized.startsWith('en')) {
+    const japaneseCount = (
+      mergedText.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu) ?? []
+    ).length;
+    const latinCount = (mergedText.match(/[A-Za-z]/g) ?? []).length;
+
+    if (latinCount < 20 && japaneseCount > 20) {
+      return `Note: The summary may not be in selected language (${language}).`;
+    }
+    return undefined;
+  }
+
+  return undefined;
 }
 
 function extractFirstJsonObject(input: string): string {
@@ -215,6 +250,23 @@ function truncateTranscript(text: string): { text: string; truncated: boolean } 
     text: `${text.slice(0, MAX_TRANSCRIPT_CHARS)}\n...[TRUNCATED]`,
     truncated: true
   };
+}
+
+function toLanguageInstruction(language: string): string {
+  const normalized = language.trim().toLowerCase();
+  if (normalized === 'ja' || normalized === 'ja-jp') {
+    return 'Japanese';
+  }
+  if (normalized === 'en' || normalized === 'en-us' || normalized === 'en-gb') {
+    return 'English';
+  }
+  if (normalized === 'ko' || normalized === 'ko-kr') {
+    return 'Korean';
+  }
+  if (normalized === 'zh' || normalized === 'zh-cn' || normalized === 'zh-tw') {
+    return 'Chinese';
+  }
+  return language;
 }
 
 function shouldRetryStatus(status: number): boolean {

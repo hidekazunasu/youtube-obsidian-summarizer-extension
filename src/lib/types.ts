@@ -25,6 +25,7 @@ export interface SummaryResult {
   keywords: string[];
   broadTags: string[];
   model: string;
+  languageNotice?: string;
 }
 
 export interface NotePayload {

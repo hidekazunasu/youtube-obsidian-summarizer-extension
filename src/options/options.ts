@@ -68,11 +68,17 @@ async function initialize(): Promise<void> {
 
 function applySettings(settings: ExtensionSettings): void {
   for (const id of ids) {
-    const input = document.getElementById(id) as HTMLInputElement | null;
-    if (!input) {
+    const field = document.getElementById(id) as
+      | HTMLInputElement
+      | HTMLSelectElement
+      | null;
+    if (!field) {
       continue;
     }
-    input.value = String(settings[id]);
+    if (id === 'summaryLanguage' && field instanceof HTMLSelectElement) {
+      ensureSelectHasOption(field, String(settings[id]));
+    }
+    field.value = String(settings[id]);
   }
 }
 
@@ -80,19 +86,39 @@ function readForm(): ExtensionSettings {
   const result = {} as Record<keyof ExtensionSettings, string | boolean>;
 
   for (const id of ids) {
-    const input = document.getElementById(id) as HTMLInputElement | null;
-    if (!input) {
+    const field = document.getElementById(id) as
+      | HTMLInputElement
+      | HTMLSelectElement
+      | null;
+    if (!field) {
       continue;
     }
 
     if (id === 'obsidianRestEnabled') {
-      result[id] = input.value.toLowerCase() === 'true';
+      result[id] = field.value.toLowerCase() === 'true';
     } else {
-      result[id] = input.value;
+      result[id] = field.value;
     }
   }
 
   return result as ExtensionSettings;
+}
+
+function ensureSelectHasOption(select: HTMLSelectElement, value: string): void {
+  if (!value.trim()) {
+    return;
+  }
+
+  for (const option of Array.from(select.options)) {
+    if (option.value === value) {
+      return;
+    }
+  }
+
+  const custom = document.createElement('option');
+  custom.value = value;
+  custom.textContent = `Custom (${value})`;
+  select.appendChild(custom);
 }
 
 function applyLastError(at?: string, text?: string): void {

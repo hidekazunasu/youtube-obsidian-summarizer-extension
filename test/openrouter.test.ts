@@ -34,6 +34,11 @@ describe('buildPrompt', () => {
     expect(prompt).toContain('Transcript note: input was truncated to first 30000 characters.');
     expect(prompt).toContain('...[TRUNCATED]');
   });
+
+  it('adds strict output language instruction', () => {
+    const prompt = buildPrompt(sampleVideo, 'ja');
+    expect(prompt).toContain('All output text must be in Japanese.');
+  });
 });
 
 describe('summarizeVideo', () => {
@@ -84,5 +89,46 @@ describe('summarizeVideo', () => {
         .calls[0][1].body
     );
     expect(firstCallBody.response_format).toEqual({ type: 'json_object' });
+  });
+
+  it('adds language notice when ja is selected but output is mostly English', async () => {
+    const englishPayload = {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              summary_lines: [
+                'This video compares hand grinder performance and tasting outcomes.',
+                'Several burr types are compared for filter brewing.',
+                'The blind test results vary by setup.'
+              ],
+              key_points: [
+                'Hardware design affects extraction',
+                'Particle spread is not everything',
+                'Budget options can compete',
+                'Premium options offer consistency',
+                'Taste preference still dominates'
+              ],
+              keywords: ['coffee', 'grinder', 'burr'],
+              broad_tags: ['coffee', 'gear']
+            })
+          }
+        }
+      ]
+    };
+
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => englishPayload,
+      text: async () => JSON.stringify(englishPayload)
+    }) as unknown as typeof fetch;
+
+    const result = await summarizeVideo(sampleVideo, baseSettings, {
+      fetchImpl
+    });
+
+    expect(result.languageNotice).toContain('選択言語（ja）以外');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

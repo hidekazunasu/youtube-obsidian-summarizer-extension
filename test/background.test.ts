@@ -87,4 +87,30 @@ describe('background action click flow', () => {
 
     expect(showAlert).toHaveBeenCalledWith(1, expect.stringContaining('Obsidian URI too long'));
   });
+
+  it('appends language notice on success when summary language differs', async () => {
+    const showAlert = vi.fn(async () => undefined);
+
+    const handler = createActionClickHandler({
+      getSettings: vi.fn(async () => baseSettings),
+      openOptionsPage: vi.fn(async () => undefined),
+      collectVideoData: vi.fn(async () => sampleVideo),
+      summarizeVideo: vi.fn(async () => ({
+        ...sampleSummary,
+        languageNotice: '注意: 選択言語（ja）以外で要約された可能性があります。'
+      })) as any,
+      buildNotePayload: vi.fn(() => ({ path: 'Youtube/test.md', content: '# note' })) as any,
+      saveToObsidian: vi.fn(async () => ({ status: 'rest_saved' })) as any,
+      clearLastErrorRecord: vi.fn(async () => undefined),
+      saveLastErrorRecord: vi.fn(async () => undefined),
+      showAlert
+    });
+
+    await handler({ id: 1, url: 'https://www.youtube.com/watch?v=abc123' });
+
+    expect(showAlert).toHaveBeenCalledWith(
+      1,
+      expect.stringContaining('注意: 選択言語（ja）以外で要約された可能性があります。')
+    );
+  });
 });

@@ -109,9 +109,10 @@ export function createActionClickHandler(
 
       const suffix =
         saveResult.status === 'uri_fallback_saved' ? '（URIフォールバック）' : '（REST API）';
+      const languageNotice = summary.languageNotice ? `\n${summary.languageNotice}` : '';
 
       await deps.clearLastErrorRecord();
-      await deps.showAlert(tab.id, `保存完了 ${suffix}\n${note.path}`);
+      await deps.showAlert(tab.id, `保存完了 ${suffix}\n${note.path}${languageNotice}`);
     } catch (err) {
       const message = userSafeError(err);
       await deps.saveLastErrorRecord(formatErrorForClipboard(err));
