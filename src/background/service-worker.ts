@@ -1,4 +1,5 @@
 import { buildNotePayload } from '../lib/note';
+import { saveToNotion } from '../lib/notion';
 import { saveToObsidian } from '../lib/obsidian';
 import { summarizeVideo } from '../lib/openrouter';
 import {
@@ -11,6 +12,8 @@ import {
 import type {
   CollectVideoDataMessageResponse,
   ExtensionSettings,
+  SaveResult,
+  SummaryResult,
   VideoData
 } from '../lib/types';
 import {
@@ -41,6 +44,7 @@ export interface BackgroundDeps {
   summarizeVideo: typeof summarizeVideo;
   buildNotePayload: typeof buildNotePayload;
   saveToObsidian: typeof saveToObsidian;
+  saveToNotion: typeof saveToNotion;
   clearLastErrorRecord: () => Promise<void>;
   saveLastErrorRecord: (text: string) => Promise<void>;
   showAlert: (tabId: number, message: string) => Promise<void>;
@@ -55,6 +59,7 @@ const defaultDeps: BackgroundDeps = {
   summarizeVideo,
   buildNotePayload,
   saveToObsidian,
+  saveToNotion,
   clearLastErrorRecord,
   saveLastErrorRecord,
   showAlert
@@ -102,17 +107,25 @@ export function createActionClickHandler(
       const summary = await deps.summarizeVideo(videoData, settings);
       const note = deps.buildNotePayload(videoData, summary, settings);
 
-      const saveResult = await deps.saveToObsidian(note, settings);
+      const saveResult = await saveByDestination(
+        settings,
+        deps.saveToObsidian,
+        deps.saveToNotion,
+        note,
+        videoData,
+        summary
+      );
       if (saveResult.status === 'failed') {
-        throw new Error(saveResult.message ?? 'Obsidian保存に失敗しました。');
+        throw new Error(saveResult.message ?? '保存に失敗しました。');
       }
 
-      const suffix =
-        saveResult.status === 'uri_fallback_saved' ? '（URIフォールバック）' : '（REST API）';
       const languageNotice = summary.languageNotice ? `\n${summary.languageNotice}` : '';
+      const successSuffix = buildSuccessSuffix(settings, saveResult);
+      const successDetail =
+        settings.outputDestination === 'notion' ? saveResult.message ?? note.path : note.path;
 
       await deps.clearLastErrorRecord();
-      await deps.showAlert(tab.id, `保存完了 ${suffix}\n${note.path}${languageNotice}`);
+      await deps.showAlert(tab.id, `保存完了 ${successSuffix}\n${successDetail}${languageNotice}`);
     } catch (err) {
       const message = userSafeError(err);
       await deps.saveLastErrorRecord(formatErrorForClipboard(err));
@@ -154,6 +167,17 @@ function validateSettings(settings: ExtensionSettings): string | null {
   if (!settings.openrouterApiKey.trim()) {
     return 'OpenRouter APIキーが未設定です。オプション画面で設定してください。';
   }
+
+  if (settings.outputDestination === 'notion') {
+    if (!settings.notionParentPageId.trim()) {
+      return 'Notion Parent Page IDが未設定です。オプション画面で設定してください。';
+    }
+    if (!settings.notionApiToken.trim()) {
+      return 'Notion API Tokenが未設定です。オプション画面で設定してください。';
+    }
+    return null;
+  }
+
   if (!settings.obsidianVaultName.trim()) {
     return 'Obsidian vault名が未設定です。オプション画面で設定してください。';
   }
@@ -161,6 +185,30 @@ function validateSettings(settings: ExtensionSettings): string | null {
     return 'Obsidian REST APIキーが未設定です。オプション画面で設定してください。';
   }
   return null;
+}
+
+async function saveByDestination(
+  settings: ExtensionSettings,
+  saveObsidian: typeof saveToObsidian,
+  saveNotion: typeof saveToNotion,
+  note: ReturnType<typeof buildNotePayload>,
+  video: VideoData,
+  summary: SummaryResult
+): Promise<SaveResult> {
+  if (settings.outputDestination === 'notion') {
+    return await saveNotion(note, video, summary, settings);
+  }
+  return await saveObsidian(note, settings);
+}
+
+function buildSuccessSuffix(settings: ExtensionSettings, saveResult: SaveResult): string {
+  if (settings.outputDestination === 'notion') {
+    return '（Notion）';
+  }
+  if (saveResult.status === 'uri_fallback_saved') {
+    return '（Obsidian: URIフォールバック）';
+  }
+  return '（Obsidian: REST API）';
 }
 
 export async function showAlert(tabId: number, message: string): Promise<void> {
@@ -179,7 +227,7 @@ export async function showAlert(tabId: number, message: string): Promise<void> {
 
   await actionSetBadgeBackgroundColor('#9b3d00');
   await actionSetBadgeText('!');
-  await actionSetTitle(`YouTube to Obsidian: ${message}`);
+  await actionSetTitle(`YouTube Summarizer: ${message}`);
 }
 
 function userSafeError(err: unknown): string {

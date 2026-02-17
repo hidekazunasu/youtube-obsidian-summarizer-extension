@@ -1,12 +1,16 @@
 export interface ExtensionSettings {
   openrouterApiKey: string;
   openrouterModel: string;
+  outputDestination: 'obsidian' | 'notion';
+  summaryCustomInstruction: string;
   obsidianVaultName: string;
   obsidianFolderPattern: string;
   obsidianFilenamePattern: string;
   obsidianRestEnabled: boolean;
   obsidianRestBaseUrl: string;
   obsidianRestApiKey: string;
+  notionParentPageId: string;
+  notionApiToken: string;
   summaryLanguage: string;
 }
 
@@ -33,7 +37,7 @@ export interface NotePayload {
   content: string;
 }
 
-export type SaveStatus = 'rest_saved' | 'uri_fallback_saved' | 'failed';
+export type SaveStatus = 'rest_saved' | 'uri_fallback_saved' | 'notion_saved' | 'failed';
 
 export interface SaveResult {
   status: SaveStatus;

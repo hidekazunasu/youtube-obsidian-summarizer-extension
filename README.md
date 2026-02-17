@@ -1,6 +1,6 @@
-# YouTube to Obsidian Summarizer
+# YouTube Summarizer (Obsidian / Notion)
 
-YouTube動画ページで拡張機能アクションを押すと、字幕を OpenRouter で要約し、Obsidian に保存する WebExtension です。
+YouTube動画ページで拡張機能アクションを押すと、字幕を OpenRouter で要約し、Obsidian または Notion に保存する WebExtension です。
 
 ## Supported Browsers
 
@@ -11,9 +11,32 @@ YouTube動画ページで拡張機能アクションを押すと、字幕を Ope
 
 - YouTube `watch` ページ対応
 - OpenRouter API で字幕要約
+- 出力先選択（Obsidian / Notion）
+- 要約カスタム指示（自由入力）
 - Obsidian Local REST API を優先して保存
 - REST失敗時は `obsidian://new` へフォールバック
 - 自動タグ付け（`topic/*` + keyword tags）
+- Google Docs は次フェーズで対応予定
+
+## OpenRouter Model 候補（Gemini / DeepSeek）
+
+`OpenRouter Model` には OpenRouter のモデルIDをそのまま入力します。
+
+- Free Router
+  - `openrouter/free`
+- Gemini系（Google）
+  - `google/gemini-2.5-pro`
+  - `google/gemini-2.0-flash-001`
+- Gemini系 Free（Gemma）
+  - `google/gemma-3-12b-it:free`
+- DeepSeek系
+  - `deepseek/deepseek-v3.2`
+  - `deepseek/deepseek-r1`
+- DeepSeek系 Free
+  - `deepseek/deepseek-r1-0528:free`
+
+注意:
+- モデルIDや提供状況は変わるため、最新は OpenRouter Models/API で確認してください。
 
 ## Manifest roles
 

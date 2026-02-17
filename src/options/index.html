@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>YouTube to Obsidian Settings</title>
+    <title>YouTube Summarizer Settings</title>
     <style>
       :root {
         color-scheme: light;
@@ -81,8 +81,15 @@
         flex-wrap: wrap;
       }
 
-      .error-pane {
-        margin-top: 20px;
+      .field-group {
+        border: 1px dashed #c1aa86;
+        border-radius: 10px;
+        padding: 10px;
+      }
+
+      .field-group > h2 {
+        margin: 0 0 10px;
+        font-size: 1rem;
       }
 
       button {
@@ -101,8 +108,15 @@
   </head>
   <body>
     <main>
-      <h1>YouTube to Obsidian 設定</h1>
+      <h1>YouTube Summarizer 設定</h1>
       <div class="grid">
+        <div>
+          <label for="outputDestination">Output Destination</label>
+          <select id="outputDestination">
+            <option value="obsidian">Obsidian</option>
+            <option value="notion">Notion</option>
+          </select>
+        </div>
         <div>
           <label for="openrouterApiKey">OpenRouter API Key</label>
           <input id="openrouterApiKey" type="password" />
@@ -124,7 +138,17 @@
             <option value="de">German (de)</option>
           </select>
         </div>
-        <div>
+        <div style="grid-column: 1 / -1">
+          <label for="summaryCustomInstruction">Summary Custom Instruction</label>
+          <textarea
+            id="summaryCustomInstruction"
+            placeholder="例: 料理動画なら、材料・分量・手順・コツを優先して要約してください。"
+          ></textarea>
+        </div>
+        <div id="obsidianFields" class="field-group" style="grid-column: 1 / -1">
+          <h2>Obsidian Settings</h2>
+          <div class="grid">
+            <div>
           <label for="obsidianVaultName">Obsidian Vault Name</label>
           <input id="obsidianVaultName" type="text" />
         </div>
@@ -148,20 +172,27 @@
           <label for="obsidianRestApiKey">Obsidian REST API Key</label>
           <input id="obsidianRestApiKey" type="password" />
         </div>
+          </div>
+        </div>
+        <div id="notionFields" class="field-group" style="grid-column: 1 / -1" hidden>
+          <h2>Notion Settings</h2>
+          <div class="grid">
+            <div>
+              <label for="notionParentPageId">Notion Parent Page ID</label>
+              <input id="notionParentPageId" type="text" />
+            </div>
+            <div>
+              <label for="notionApiToken">Notion API Token</label>
+              <input id="notionApiToken" type="password" />
+            </div>
+          </div>
+        </div>
       </div>
       <div class="actions">
         <button id="save" type="button">保存</button>
         <button id="reset" type="button">デフォルトに戻す</button>
       </div>
       <div id="status"></div>
-      <div class="error-pane">
-        <label for="lastErrorText">Last Error（コピペ用）</label>
-        <textarea id="lastErrorText" readonly></textarea>
-        <div class="actions">
-          <button id="copyLastError" type="button">エラーをコピー</button>
-          <button id="clearLastError" type="button">エラーをクリア</button>
-        </div>
-      </div>
     </main>
     <script type="module" src="./options.ts"></script>
   </body>

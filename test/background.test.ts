@@ -113,4 +113,52 @@ describe('background action click flow', () => {
       expect.stringContaining('注意: 選択言語（ja）以外で要約された可能性があります。')
     );
   });
+
+  it('routes save to notion when destination is notion', async () => {
+    const showAlert = vi.fn(async () => undefined);
+    const saveToNotion = vi.fn(async () => ({ status: 'notion_saved' })) as any;
+    const saveToObsidian = vi.fn(async () => ({ status: 'rest_saved' })) as any;
+
+    const handler = createActionClickHandler({
+      getSettings: vi.fn(async () => ({ ...baseSettings, outputDestination: 'notion' as const })),
+      openOptionsPage: vi.fn(async () => undefined),
+      collectVideoData: vi.fn(async () => sampleVideo),
+      summarizeVideo: vi.fn(async () => sampleSummary) as any,
+      buildNotePayload: vi.fn(() => ({ path: 'Youtube/test.md', content: '# note' })) as any,
+      saveToNotion,
+      saveToObsidian,
+      clearLastErrorRecord: vi.fn(async () => undefined),
+      saveLastErrorRecord: vi.fn(async () => undefined),
+      showAlert
+    });
+
+    await handler({ id: 1, url: 'https://www.youtube.com/watch?v=abc123' });
+
+    expect(saveToNotion).toHaveBeenCalledTimes(1);
+    expect(saveToObsidian).not.toHaveBeenCalled();
+    expect(showAlert).toHaveBeenCalledWith(1, expect.stringContaining('（Notion）'));
+  });
+
+  it('shows validation error when notion token is missing', async () => {
+    const showAlert = vi.fn(async () => undefined);
+    const openOptionsPage = vi.fn(async () => undefined);
+
+    const handler = createActionClickHandler({
+      getSettings: vi.fn(async () => ({
+        ...baseSettings,
+        outputDestination: 'notion' as const,
+        notionApiToken: ''
+      })),
+      openOptionsPage,
+      showAlert
+    });
+
+    await handler({ id: 1, url: 'https://www.youtube.com/watch?v=abc123' });
+
+    expect(showAlert).toHaveBeenCalledWith(
+      1,
+      expect.stringContaining('Notion API Tokenが未設定')
+    );
+    expect(openOptionsPage).toHaveBeenCalledTimes(1);
+  });
 });

@@ -39,6 +39,21 @@ describe('buildPrompt', () => {
     const prompt = buildPrompt(sampleVideo, 'ja');
     expect(prompt).toContain('All output text must be in Japanese.');
   });
+
+  it('includes custom instruction when provided', () => {
+    const prompt = buildPrompt(
+      sampleVideo,
+      'ja',
+      '料理動画なら、材料と手順を優先して要約してください。'
+    );
+    expect(prompt).toContain('Additional user instruction:');
+    expect(prompt).toContain('材料と手順');
+  });
+
+  it('omits custom instruction section when blank', () => {
+    const prompt = buildPrompt(sampleVideo, 'ja', '   ');
+    expect(prompt).not.toContain('Additional user instruction:');
+  });
 });
 
 describe('summarizeVideo', () => {

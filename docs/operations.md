@@ -27,6 +27,35 @@ Firefox:
 1. `npm run build:firefox`
 2. `about:debugging#/runtime/this-firefox` で `dist/firefox/manifest.json` を読み込む
 
+## 2.1 設定（Notion利用時）
+
+- `Output Destination`: `notion`
+- `Notion Parent Page ID`: 連携先ページID
+- `Notion API Token`: Notion Integration Token
+- Obsidian設定は `outputDestination=obsidian` の時のみ利用される
+
+## 2.2 OpenRouter Model の指定方法
+
+オプション画面の `OpenRouter Model` に、OpenRouterのモデルIDを入力する。
+
+候補:
+- `openrouter/free`
+- `google/gemini-2.5-pro`
+- `google/gemini-2.0-flash-001`
+- `google/gemma-3-12b-it:free`
+- `deepseek/deepseek-v3.2`
+- `deepseek/deepseek-r1`
+- `deepseek/deepseek-r1-0528:free`
+
+手順:
+1. オプション画面を開く
+2. `OpenRouter Model` にモデルIDを入力
+3. 保存してYouTubeページで再実行
+
+トラブル時:
+- `429`: 無料枠や混雑の可能性。時間を空けるか別モデルへ変更
+- `model not found`: モデルIDが無効。最新の OpenRouter Models で確認
+
 ## 3. 開発フロー
 
 - デフォルトブランチ: `main`
@@ -107,7 +136,6 @@ git push origin v0.1.1
 
 まず確認する情報:
 - Alert の表示文言
-- オプション画面の `Last Error`
 - 拡張機能の Service Worker ログ
 
 よくある事象:

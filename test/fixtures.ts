@@ -3,12 +3,16 @@ import type { ExtensionSettings, SummaryResult, VideoData } from '../src/lib/typ
 export const baseSettings: ExtensionSettings = {
   openrouterApiKey: 'sk-test',
   openrouterModel: 'test/model:free',
+  outputDestination: 'obsidian',
+  summaryCustomInstruction: '',
   obsidianVaultName: 'MainVault',
   obsidianFolderPattern: 'Youtube/{channel}',
   obsidianFilenamePattern: '{yyyy-mm-dd}_{title}_{videoId}.md',
   obsidianRestEnabled: true,
   obsidianRestBaseUrl: 'http://127.0.0.1:27123',
   obsidianRestApiKey: 'obsidian-key',
+  notionParentPageId: 'parent-page-id',
+  notionApiToken: 'notion-token',
   summaryLanguage: 'ja'
 };
 

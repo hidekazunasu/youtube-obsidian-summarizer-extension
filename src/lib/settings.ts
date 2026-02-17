@@ -13,7 +13,7 @@ const SETTINGS_SECRETS_KEY = 'settings_secrets';
 const LEGACY_SETTINGS_KEY = 'settings';
 const LAST_ERROR_KEY = 'last_error_record';
 
-type SecretKey = 'openrouterApiKey' | 'obsidianRestApiKey';
+type SecretKey = 'openrouterApiKey' | 'obsidianRestApiKey' | 'notionApiToken';
 type SettingsSecrets = Pick<ExtensionSettings, SecretKey>;
 type SettingsPublic = Omit<ExtensionSettings, SecretKey>;
 
@@ -25,12 +25,16 @@ export interface LastErrorRecord {
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   openrouterApiKey: '',
   openrouterModel: 'mistralai/mistral-small-3.1-24b-instruct:free',
+  outputDestination: 'obsidian',
+  summaryCustomInstruction: '',
   obsidianVaultName: '',
   obsidianFolderPattern: 'Youtube/{channel}',
   obsidianFilenamePattern: '{yyyy-mm-dd}_{title}_{videoId}.md',
   obsidianRestEnabled: true,
   obsidianRestBaseUrl: 'http://127.0.0.1:27123',
   obsidianRestApiKey: '',
+  notionParentPageId: '',
+  notionApiToken: '',
   summaryLanguage: 'ja'
 };
 
@@ -127,6 +131,9 @@ async function migrateLegacySettings(
 function pickPublicSettings(input: Partial<ExtensionSettings>): SettingsPublic {
   return {
     openrouterModel: input.openrouterModel ?? DEFAULT_SETTINGS.openrouterModel,
+    outputDestination: input.outputDestination ?? DEFAULT_SETTINGS.outputDestination,
+    summaryCustomInstruction:
+      input.summaryCustomInstruction ?? DEFAULT_SETTINGS.summaryCustomInstruction,
     obsidianVaultName: input.obsidianVaultName ?? DEFAULT_SETTINGS.obsidianVaultName,
     obsidianFolderPattern:
       input.obsidianFolderPattern ?? DEFAULT_SETTINGS.obsidianFolderPattern,
@@ -134,6 +141,7 @@ function pickPublicSettings(input: Partial<ExtensionSettings>): SettingsPublic {
       input.obsidianFilenamePattern ?? DEFAULT_SETTINGS.obsidianFilenamePattern,
     obsidianRestEnabled: input.obsidianRestEnabled ?? DEFAULT_SETTINGS.obsidianRestEnabled,
     obsidianRestBaseUrl: input.obsidianRestBaseUrl ?? DEFAULT_SETTINGS.obsidianRestBaseUrl,
+    notionParentPageId: input.notionParentPageId ?? DEFAULT_SETTINGS.notionParentPageId,
     summaryLanguage: input.summaryLanguage ?? DEFAULT_SETTINGS.summaryLanguage
   };
 }
@@ -141,6 +149,7 @@ function pickPublicSettings(input: Partial<ExtensionSettings>): SettingsPublic {
 function pickSecretSettings(input: Partial<ExtensionSettings>): SettingsSecrets {
   return {
     openrouterApiKey: input.openrouterApiKey ?? '',
-    obsidianRestApiKey: input.obsidianRestApiKey ?? ''
+    obsidianRestApiKey: input.obsidianRestApiKey ?? '',
+    notionApiToken: input.notionApiToken ?? ''
   };
 }

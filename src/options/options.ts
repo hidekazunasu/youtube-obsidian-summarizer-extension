@@ -1,28 +1,32 @@
-import {
-  clearLastErrorRecord,
-  DEFAULT_SETTINGS,
-  getLastErrorRecord,
-  getSettings,
-  saveSettings
-} from '../lib/settings';
+import { DEFAULT_SETTINGS, getSettings, saveSettings } from '../lib/settings';
 import type { ExtensionSettings } from '../lib/types';
 
 const ids: Array<keyof ExtensionSettings> = [
+  'outputDestination',
   'openrouterApiKey',
   'openrouterModel',
   'summaryLanguage',
+  'summaryCustomInstruction',
   'obsidianVaultName',
   'obsidianFolderPattern',
   'obsidianFilenamePattern',
   'obsidianRestEnabled',
   'obsidianRestBaseUrl',
-  'obsidianRestApiKey'
+  'obsidianRestApiKey',
+  'notionParentPageId',
+  'notionApiToken'
 ];
 
 const statusEl = document.getElementById('status') as HTMLDivElement;
-const lastErrorTextEl = document.getElementById('lastErrorText') as HTMLTextAreaElement;
+const destinationEl = document.getElementById('outputDestination') as HTMLSelectElement;
+const obsidianFieldsEl = document.getElementById('obsidianFields') as HTMLDivElement;
+const notionFieldsEl = document.getElementById('notionFields') as HTMLDivElement;
 
 void initialize();
+
+destinationEl?.addEventListener('change', () => {
+  updateDestinationVisibility(destinationEl.value as ExtensionSettings['outputDestination']);
+});
 
 document.getElementById('save')?.addEventListener('click', async () => {
   const next = readForm();
@@ -36,50 +40,30 @@ document.getElementById('reset')?.addEventListener('click', async () => {
   statusEl.textContent = 'デフォルトへ戻しました';
 });
 
-document.getElementById('copyLastError')?.addEventListener('click', async () => {
-  const text = lastErrorTextEl.value.trim();
-  if (!text) {
-    statusEl.textContent = 'コピー対象のエラーはありません';
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(text);
-    statusEl.textContent = 'エラーをコピーしました';
-  } catch {
-    lastErrorTextEl.focus();
-    lastErrorTextEl.select();
-    statusEl.textContent = 'コピーに失敗しました。手動で選択してコピーしてください';
-  }
-});
-
-document.getElementById('clearLastError')?.addEventListener('click', async () => {
-  await clearLastErrorRecord();
-  lastErrorTextEl.value = '';
-  statusEl.textContent = 'エラー履歴をクリアしました';
-});
-
 async function initialize(): Promise<void> {
   const settings = await getSettings();
-  const lastError = await getLastErrorRecord();
   applySettings(settings);
-  applyLastError(lastError?.at, lastError?.text);
 }
 
 function applySettings(settings: ExtensionSettings): void {
   for (const id of ids) {
     const field = document.getElementById(id) as
       | HTMLInputElement
+      | HTMLTextAreaElement
       | HTMLSelectElement
       | null;
     if (!field) {
       continue;
     }
-    if (id === 'summaryLanguage' && field instanceof HTMLSelectElement) {
+
+    if ((id === 'summaryLanguage' || id === 'outputDestination') && field instanceof HTMLSelectElement) {
       ensureSelectHasOption(field, String(settings[id]));
     }
+
     field.value = String(settings[id]);
   }
+
+  updateDestinationVisibility(settings.outputDestination);
 }
 
 function readForm(): ExtensionSettings {
@@ -88,6 +72,7 @@ function readForm(): ExtensionSettings {
   for (const id of ids) {
     const field = document.getElementById(id) as
       | HTMLInputElement
+      | HTMLTextAreaElement
       | HTMLSelectElement
       | null;
     if (!field) {
@@ -102,6 +87,12 @@ function readForm(): ExtensionSettings {
   }
 
   return result as ExtensionSettings;
+}
+
+function updateDestinationVisibility(destination: ExtensionSettings['outputDestination']): void {
+  const showObsidian = destination === 'obsidian';
+  obsidianFieldsEl.hidden = !showObsidian;
+  notionFieldsEl.hidden = showObsidian;
 }
 
 function ensureSelectHasOption(select: HTMLSelectElement, value: string): void {
@@ -119,12 +110,4 @@ function ensureSelectHasOption(select: HTMLSelectElement, value: string): void {
   custom.value = value;
   custom.textContent = `Custom (${value})`;
   select.appendChild(custom);
-}
-
-function applyLastError(at?: string, text?: string): void {
-  if (!text) {
-    lastErrorTextEl.value = '';
-    return;
-  }
-  lastErrorTextEl.value = at ? `[${at}]\n${text}` : text;
 }

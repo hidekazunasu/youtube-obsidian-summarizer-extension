@@ -34,7 +34,11 @@ export async function summarizeVideo(
   const sleepMs = deps.sleepMs ?? defaultSleep;
   const random = deps.random ?? Math.random;
 
-  const prompt = buildPrompt(video, settings.summaryLanguage);
+  const prompt = buildPrompt(
+    video,
+    settings.summaryLanguage,
+    settings.summaryCustomInstruction
+  );
   let attempt = 0;
 
   while (true) {
@@ -111,9 +115,14 @@ export async function summarizeVideo(
   }
 }
 
-export function buildPrompt(video: VideoData, language: string): string {
+export function buildPrompt(
+  video: VideoData,
+  language: string,
+  customInstruction = ''
+): string {
   const { text: transcript, truncated } = truncateTranscript(video.transcriptText);
   const target = toLanguageInstruction(language);
+  const custom = customInstruction.trim();
 
   return [
     `Language: ${language}`,
@@ -130,6 +139,7 @@ export function buildPrompt(video: VideoData, language: string): string {
     truncated
       ? `Transcript note: input was truncated to first ${MAX_TRANSCRIPT_CHARS} characters.`
       : 'Transcript note: full transcript included.',
+    ...(custom ? ['', 'Additional user instruction:', custom] : []),
     'Transcript:',
     transcript
   ].join('\n');
