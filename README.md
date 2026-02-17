@@ -71,6 +71,13 @@ npm run test
 npm run build:all
 ```
 
+## Development docs
+
+- 仕様書: `docs/specification.md`
+- 運用手順（開発/CI/リリース）: `docs/operations.md`
+- リリース補足: `docs/release.md`
+- 貢献ガイド: `CONTRIBUTING.md`
+
 ## Release
 
 ```bash
